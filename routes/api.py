@@ -10,6 +10,7 @@ router.include_router(medicalAPI.router)
 router.include_router(feedbackAPI.router)
 router.include_router(diagonosisAPI.router)
 router.include_router(imageAPI.router)
+#i am here
 # router.include_router(addresses.router)
 # router.include_router(transaction_records.router)
 # router.include_router(daily_table.router)
