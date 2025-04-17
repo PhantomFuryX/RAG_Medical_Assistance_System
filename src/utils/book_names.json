@@ -1,0 +1,203 @@
+[
+  {
+    "title": "Anatomy and Physiology",
+    "link": "https://openstax.org/books/anatomy-and-physiology/pages/1-introduction",
+    "description": "Comprehensive textbook covering human anatomy and physiology."
+  },
+  {
+    "title": "Internal Medicine",
+    "link": "https://www.infobooks.org/free-pdf-books/medical/general-medicine/",
+    "description": "Covers topics like infectious diseases, respiratory and cardiovascular conditions."
+  },
+  {
+    "title": "Standard Treatment Guidelines and Essential Medicines List",
+    "link": "https://www.infobooks.org/free-pdf-books/medical/general-medicine/",
+    "description": "Provides standardized treatment protocols and essential medicines."
+  },
+  {
+    "title": "Diagnosis and Treatment Manual",
+    "link": "https://www.infobooks.org/free-pdf-books/medical/general-medicine/",
+    "description": "Guidelines for diagnosing and treating various medical conditions."
+  },
+  {
+    "title": "The WHO Manual of Diagnostic Imaging",
+    "link": "https://www.infobooks.org/free-pdf-books/medical/general-medicine/",
+    "description": "Radiographic anatomy and interpretation of the musculoskeletal system."
+  },
+  {
+    "title": "Clinical Pharmacology in Health Care, Teaching and Research",
+    "link": "https://www.infobooks.org/free-pdf-books/medical/general-medicine/",
+    "description": "Explores the role of clinical pharmacology in various settings."
+  },
+  {
+    "title": "Immunology",
+    "link": "https://www.infobooks.org/free-pdf-books/medical/general-medicine/",
+    "description": "Introduction to the immune system and its functions."
+  },
+  {
+    "title": "Ultrasound Physics and Its Application in Medicine",
+    "link": "https://www.infobooks.org/free-pdf-books/medical/general-medicine/",
+    "description": "Basics of ultrasound physics and medical applications."
+  },
+  {
+    "title": "Good Clinical Diagnostic Practice",
+    "link": "https://www.infobooks.org/free-pdf-books/medical/general-medicine/",
+    "description": "Guidance on accurate clinical diagnosis and use of diagnostic services."
+  },
+  {
+    "title": "Social Medicine",
+    "link": "https://www.infobooks.org/free-pdf-books/medical/general-medicine/",
+    "description": "Examines social determinants of health and their impact."
+  },
+  {
+    "title": "A Clinical Text-Book of Medical Diagnosis",
+    "link": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5197280/",
+    "description": "Historical perspective on medical diagnosis practices."
+  },
+  {
+    "title": "A Text-Book of Medical Diagnosis",
+    "link": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5149923/",
+    "description": "Comprehensive guide on medical diagnostic methods."
+  },
+  {
+    "title": "Fundamentals of Human Anatomy Laboratory Manual",
+    "link": "https://open.umn.edu/opentextbooks/subjects/medicine/",
+    "description": "Laboratory manual for introductory human anatomy courses."
+  },
+  {
+    "title": "Radiobiology Textbook",
+    "link": "https://open.umn.edu/opentextbooks/subjects/medicine/",
+    "description": "Covers radiation biology and its medical applications."
+  },
+  {
+    "title": "Textbook of Patient Safety and Clinical Risk Management",
+    "link": "https://www.opencollegebooks.org/",
+    "description": "Focuses on patient safety and managing clinical risks."
+  },
+  {
+    "title": "Clinical Procedures for Safer Patient Care",
+    "link": "https://www.opencollegebooks.org/",
+    "description": "Guidelines for safe clinical procedures."
+  },
+  {
+    "title": "Mind the Gap: A Handbook of Clinical Signs in Black and Brown Skin",
+    "link": "https://www.opencollegebooks.org/",
+    "description": "Addresses clinical signs in diverse skin tones."
+  },
+  {
+    "title": "Medical Imaging Systems: An Introductory Guide",
+    "link": "https://www.opencollegebooks.org/",
+    "description": "Introduction to various medical imaging systems."
+  },
+  {
+    "title": "Safe Use of Ultrasound in Medical Diagnosis",
+    "link": "https://www.opencollegebooks.org/",
+    "description": "Guidelines for the safe application of ultrasound in medicine."
+  },
+  {
+    "title": "Clinical Semiology",
+    "link": "https://www.infobooks.org/free-pdf-books/medical/",
+    "description": "Detailed information on physical examinations and syndromes."
+  },
+  {
+    "title": "Internal Medicine",
+    "link": "https://www.infobooks.org/free-pdf-books/medical/internal-medicine/",
+    "description": ""
+  },
+  {
+    "title": "Diagnosis and Treatment Manual",
+    "link": "https://www.infobooks.org/free-pdf-books/medical/general-medicine/diagnosis-and-treatment-manual/",
+    "description": ""
+  },
+  {
+    "title": "Standard Treatment Guidelines and Essential Medicines List",
+    "link": "https://www.infobooks.org/free-pdf-books/medical/general-medicine/standard-treatment-guidelines-and-essential-medicines-list/",
+    "description": ""
+  },
+  {
+    "title": "Clinical Pharmacology in Health Care, Teaching and Research",
+    "link": "https://www.infobooks.org/free-pdf-books/medical/general-medicine/clinical-pharmacology-in-health-care-teaching-and-research/",
+    "description": ""
+  },
+  {
+    "title": "WHO Manual of Diagnostic Imaging",
+    "link": "https://www.infobooks.org/free-pdf-books/medical/general-medicine/the-who-manual-of-diagnostic-imaging/",
+    "description": ""
+  },
+  {
+    "title": "Abordaje Integral de la Obesidad",
+    "link": "https://open.umn.edu/opentextbooks/textbooks/abordaje-integral-de-la-obesidad",
+    "description": ""
+  },
+  {
+    "title": "Fundamentals of Human Anatomy Laboratory Manual",
+    "link": "https://open.umn.edu/opentextbooks/textbooks/fundamentals-of-human-anatomy-laboratory-manual",
+    "description": ""
+  },
+  {
+    "title": "Radiobiology Textbook",
+    "link": "https://open.umn.edu/opentextbooks/textbooks/radiobiology-textbook",
+    "description": ""
+  },
+  {
+    "title": "Undergraduate Diagnostic Imaging Fundamentals",
+    "link": "https://open.umn.edu/opentextbooks/textbooks/undergraduate-diagnostic-imaging-fundamentals",
+    "description": ""
+  },
+  {
+    "title": "Medical Terminology for Healthcare Professions",
+    "link": "https://www.infobooks.org/free-pdf-books/medical/medical-terminology-for-healthcare-professions/",
+    "description": ""
+  },
+  {
+    "title": "Anatomy and Physiology 2e",
+    "link": "https://www.infobooks.org/free-pdf-books/medical/anatomy-and-physiology-2e/",
+    "description": ""
+  },
+  {
+    "title": "Physiology Part I",
+    "link": "https://www.infobooks.org/free-pdf-books/medical/physiology-part-i/",
+    "description": ""
+  },
+  {
+    "title": "Immunology",
+    "link": "https://www.infobooks.org/free-pdf-books/medical/general-medicine/immunology/",
+    "description": ""
+  },
+  {
+    "title": "Ultrasound Physics and its Application in Medicine",
+    "link": "https://www.infobooks.org/free-pdf-books/medical/general-medicine/ultrasound-physics-and-its-application-in-medicine/",
+    "description": ""
+  },
+  {
+    "title": "Applied Human Anatomy",
+    "link": "https://www.infobooks.org/free-pdf-books/medical/applied-human-anatomy/",
+    "description": ""
+  },
+  {
+    "title": "Human Anatomy and Physiology",
+    "link": "https://www.infobooks.org/free-pdf-books/medical/human-anatomy-and-physiology/",
+    "description": ""
+  },
+  {
+    "title": "Textbook of Patient Safety and Clinical Risk Management",
+    "link": "https://www.opencollegebooks.org/",
+    "description": ""
+  },
+  {
+    "title": "Clinical Procedures for Safer Patient Care",
+    "link": "https://www.opencollegebooks.org/",
+    "description": ""
+  },
+  {
+    "title": "Mind the Gap: A Handbook of Clinical Signs in Black and Brown Skin",
+    "link": "https://www.opencollegebooks.org/",
+    "description": ""
+  },
+  {
+    "title": "Notes on Nursing: What It Is, and What It Is Not",
+    "link": "https://www.gutenberg.org/ebooks/17366",
+    "description": ""
+  }
+]
+  
