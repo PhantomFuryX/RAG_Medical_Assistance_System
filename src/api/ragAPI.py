@@ -43,15 +43,3 @@ async def get_rag_diagnosis(request: RAGRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing request: {str(e)}")
-
-# Add instructions for building the index
-@router.get("/build-instructions")
-def build_instructions():
-    return {
-        "message": "To build the FAISS index, follow these steps:",
-        "steps": [
-            "1. Add your medical text files to the 'data/medical_texts' directory",
-            "2. Run 'python src/retrieval/build_index.py'",
-            "3. Restart this API server"
-        ]
-    }

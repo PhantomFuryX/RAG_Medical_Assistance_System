@@ -3,27 +3,12 @@ from pydantic import BaseModel
 from typing import List, Optional
 from src.pipeline.diagonosis_pipeline import DiagnosisPipeline
 from src.retrieval.document_retriever import MedicalDocumentRetriever
+from src.main.pydentic_models.models import DiagnosisRequest, DiagnosisResponse
 
 router = APIRouter(prefix="/diagnosis", tags=["DIAGNOSIS"])
 
 # Initialize the diagnosis pipeline
 diagnosis_pipeline = DiagnosisPipeline()
-
-class DiagnosisRequest(BaseModel):
-    user_id: Optional[str] = None
-    symptoms: str
-    age: Optional[int] = None
-    gender: Optional[str] = None
-    medical_history: Optional[str] = None
-
-class DiagnosisResponse(BaseModel):
-    user_id: Optional[str] = None
-    symptoms: str
-    diagnosis: str
-    possible_conditions: List[str]
-    recommendations: List[str]
-    confidence: float
-    disclaimer: str
 
 @router.post("/analyze", response_model=DiagnosisResponse)
 async def analyze_symptoms(request: DiagnosisRequest):

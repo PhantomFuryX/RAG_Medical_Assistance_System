@@ -58,6 +58,22 @@ class FeedbackRequest(BaseModel):
     rating: Optional[int] = None
     feedback_text: str
 
+class DiagnosisRequest(BaseModel):
+    user_id: Optional[str] = None
+    symptoms: str
+    age: Optional[int] = None
+    gender: Optional[str] = None
+    medical_history: Optional[str] = None
+
+class DiagnosisResponse(BaseModel):
+    user_id: Optional[str] = None
+    symptoms: str
+    diagnosis: str
+    possible_conditions: List[str]
+    recommendations: List[str]
+    confidence: float
+    disclaimer: str
+    
 response_schemas = [
     ResponseSchema(name="answer", description="Direct, user-friendly response to the question."),
     ResponseSchema(name="suggestion", description="Optional health or safety advice."),
