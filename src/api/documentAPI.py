@@ -266,3 +266,4 @@ async def index_status(retriever: MedicalDocumentRetriever = Depends(get_retriev
         "index_exists": retriever.index is not None,
         "index_path": retriever.index_path
     }
+

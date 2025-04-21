@@ -5,13 +5,23 @@ from src.retrieval.document_retriever import MedicalDocumentRetriever
 from src.nlp.diagnosis_chain import build_diagnosis_chain
 from src.utils.config import DEEPSEEK_API_KEY
 from src.main.pydentic_models.models import RAGRequest, RAGResponse
+from src.utils.db_manager import db_manager
+from src.utils.registry import registry
+from src.utils.logger import get_api_logger
+
+logger = get_api_logger()
 
 
 router = APIRouter(prefix="/rag", tags=["RAG"])
 
 # Initialize components
 try:
-    retriever = MedicalDocumentRetriever(index_path="faiss_medical_index")
+    if registry.get("retriever") is None:
+        retriever = MedicalDocumentRetriever(lazy_loading=True)
+    else:
+        # Use the existing retriever from the registry
+        logger.info("Using existing retriever from registry")
+        retriever = registry.get("retriever")
     index_loaded = retriever.index is not None
 except Exception as e:
     print(f"Error initializing retriever: {e}")

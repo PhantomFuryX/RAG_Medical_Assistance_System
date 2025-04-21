@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     CLIENT_ORIGIN_ONLINE: str
     BACKEND_URL_ONLINE: str
     ONLINE_MODE: str
+    ENVIRONMENT: str = "development"
+    DB_NAME: str = "ragmas"
 
     # EMAIL_HOST: str
     # EMAIL_PORT: int

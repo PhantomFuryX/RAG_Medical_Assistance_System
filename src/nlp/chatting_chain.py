@@ -65,7 +65,45 @@ def get_llm_response(user_question: str, summary: str):
             parsed = {"error": "Failed to parse LLM response as JSON", "raw_response": raw_response}
     
     return parsed
+
+def build_chat_chain(chat_model, summary, user_question):
+    """
+    Build a chat chain using prompts from prompts.json
+    """
+    # Load prompts
+    prompts_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "utils", "prompts.json")
+    with open(prompts_path, "r") as f:
+        prompts = json.load(f)
     
+    # Get the medical assistant prompt
+    medical_prompt = prompts.get("medical_assistant_prompt", {})
+    if not medical_prompt:
+        raise ValueError("Medical assistant prompt not found in prompts.json")
+    
+    # Create the prompt template
+    template = medical_prompt.get("template", "")
+    input_variables = medical_prompt.get("input_variables", [])
+    
+    # Create the chain
+    model = ChatboxAI(chat_model)
+    prompt_template = PromptTemplate(
+        template=template,
+        input_variables=input_variables
+    )
+    
+    chain = model | prompt_template
+    
+    # Prepare input data
+    input_data = {
+        "summary": summary,
+        "user_question": user_question
+    }
+    
+    # Generate response
+    raw_response = chain.invoke(input_data)
+    
+    return raw_response
+
 # Example Usage
 if __name__ == "__main__":
     chain = build_chatting_chain('deepseek')

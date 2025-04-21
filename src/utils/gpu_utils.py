@@ -1,4 +1,8 @@
 import torch
+import gc
+from src.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 def get_gpu_info():
     """
@@ -30,18 +34,36 @@ def get_gpu_info():
         "message": f"CUDA is available with {gpu_count} GPU(s). Using GPU for faster processing."
     }
 
+def optimize_gpu_memory():
+    """Optimize GPU memory usage"""
+    if torch.cuda.is_available():
+        # Clear cache
+        torch.cuda.empty_cache()
+        # Run garbage collection
+        gc.collect()
+        
+        # Log memory usage
+        logger.info(f"GPU memory optimized. "
+                   f"Reserved: {torch.cuda.memory_reserved() / 1e9:.2f} GB, "
+                   f"Allocated: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
+        
 def print_gpu_info():
-    """
-    Prints information about CUDA availability and GPU devices
-    """
-    info = get_gpu_info()
+    """Print detailed GPU information"""
+    if not torch.cuda.is_available():
+        return "CUDA is not available. Using CPU."
     
-    if info["cuda_available"]:
-        print(f"🚀 {info['message']}")
-        for device in info["devices"]:
-            print(f"  - GPU {device['index']}: {device['name']}")
-            print(f"    Total memory: {device['memory_total']:.2f} GB")
-            print(f"    Reserved memory: {device['memory_reserved']:.2f} GB")
-            print(f"    Allocated memory: {device['memory_allocated']:.2f} GB")
-    else:
-        print(f"⚠️ {info['message']}")
+    gpu_count = torch.cuda.device_count()
+    info = [f"🚀 CUDA is available with {gpu_count} GPU(s). Using GPU for faster processing."]
+    
+    for i in range(gpu_count):
+        props = torch.cuda.get_device_properties(i)
+        total_memory = props.total_memory / (1024**3)  # Convert to GB
+        reserved_memory = torch.cuda.memory_reserved(i) / (1024**3)
+        allocated_memory = torch.cuda.memory_allocated(i) / (1024**3)
+        
+        info.append(f"  - GPU {i}: {props.name}")
+        info.append(f"    Total memory: {total_memory:.2f} GB")
+        info.append(f"    Reserved memory: {reserved_memory:.2f} GB")
+        info.append(f"    Allocated memory: {allocated_memory:.2f} GB")
+    
+    return "\n".join(info)

@@ -1,10 +1,10 @@
 from fastapi import APIRouter, HTTPException
-from src.main.pydentic_models.models import FeedbackRequest
+from src.main.pydentic_models.models import FeedbackRequest, FeedbackResponse
 from src.nlp.sentiment_analyzer import analyze_sentiment
 import json
 import os
 import time
-from datetime import datetime
+from src.utils.db_manager import db_manager
 
 router = APIRouter(prefix="/feedback", tags=["FEEDBACK"])
 
@@ -13,28 +13,27 @@ os.makedirs(FEEDBACK_DIR, exist_ok=True)
 
 @router.post("/submit")
 async def submit_feedback(request: FeedbackRequest):
-    """Submit user feedback for a response."""
+    """
+    Submit feedback for a conversation
+    """
     try:
-        # Analyze sentiment of the feedback
-        sentiment_analysis = analyze_sentiment(request.feedback_text)
-        
-        # Create feedback record
-        feedback_record = {
+        # Create feedback data
+        feedback_data = {
             "user_id": request.user_id,
             "query": request.query,
             "response": request.response,
             "rating": request.rating,
-            "feedback_text": request.feedback_text,
-            "sentiment": sentiment_analysis,
-            "timestamp": str(datetime.now())
+            "comments": request.comments
         }
         
-        # Save feedback to file
-        feedback_file = os.path.join(FEEDBACK_DIR, f"feedback_{int(time.time())}.json")
-        with open(feedback_file, "w") as f:
-            json.dump(feedback_record, f, indent=2)
+        # Save feedback
+        saved_feedback = await db_manager.save_feedback(feedback_data)
         
-        return {"message": "Feedback submitted successfully", "sentiment": sentiment_analysis}
+        return FeedbackResponse(
+            success=True,
+            message="Feedback submitted successfully",
+            feedback_id=str(saved_feedback.get("_id", ""))
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error submitting feedback: {str(e)}")
 

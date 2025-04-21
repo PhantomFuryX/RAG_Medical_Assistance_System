@@ -6,7 +6,11 @@ from langchain.chains import LLMChain
 from src.retrieval.document_retriever import MedicalDocumentRetriever
 from src.nlp.medical_entity_extractor import MedicalEntityExtractor
 from src.models.symptom_classifier import SymptomClassifier
-from src.nlp.openai_integration import get_openai_response
+from src.main.core.llm_engine import generate_response
+from src.utils.registry import registry
+from src.utils.logger import get_logger
+
+logger = get_logger("pipeline")
 
 class DiagnosisPipeline:
     """
@@ -23,7 +27,13 @@ class DiagnosisPipeline:
             diagnosis_chain: LLM chain for generating diagnoses
             image_classifier: Optional component for classifying medical images
         """
-        self.retriever = MedicalDocumentRetriever()
+        if registry.get("retriever") is None:
+            self.retriever = MedicalDocumentRetriever(lazy_loading=True)
+        else:
+            # Use the existing retriever from the registry
+            logger.info("Using existing retriever from registry")
+            self.retriever = registry.get("retriever")
+        # self.retriever = MedicalDocumentRetriever()
         self.entity_extractor = MedicalEntityExtractor()
         self.symptom_classifier = SymptomClassifier()
         self.diagnosis_chain = build_diagnosis_chain('deepseek')
@@ -108,7 +118,7 @@ class DiagnosisPipeline:
         Provide a thoughtful analysis of the possible conditions, their likelihood, and what further information would be helpful. Always recommend consulting a healthcare professional.
         """
         
-        diagnosis = get_openai_response(prompt)
+        diagnosis = generate_response(user_question=prompt)
         
         return {
             "user_input": user_input,
@@ -141,7 +151,7 @@ class DiagnosisPipeline:
         Provide a thoughtful analysis of the possible conditions, their likelihood, and what further information would be helpful. Always recommend consulting a healthcare professional.
         """
 
-        diagnosis = get_openai_response(prompt)
+        diagnosis = generate_response(user_question=prompt)
 
         return {
             "image_classification": image_result,

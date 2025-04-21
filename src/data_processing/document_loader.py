@@ -7,6 +7,9 @@ import pickle
 import hashlib
 from tqdm import tqdm
 import logging
+from langchain_core.documents import Document
+from src.retrieval.document_retriever import MedicalDocumentRetriever
+from src.utils.registry import registry
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -128,25 +131,30 @@ class MedicalDocumentProcessor:
     
     def bulk_process_directory(self, output_index_path="faiss_medical_index"):
         """Process all PDFs and create the FAISS index in one operation"""
-        from langchain_text_splitters import RecursiveCharacterTextSplitter
-        from src.retrieval.document_retriever import MedicalDocumentRetriever
+        
         
         # Extract all text
         all_text = self.extract_text_and_images(use_parallel=True)
         
-        # Split text into chunks
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=200
-        )
+        # Convert text to documents
+        documents = [Document(page_content=text) for text in all_text]
         
+        # Import chunk_documents here to avoid circular import
+        from src.data_processing.document_processor import chunk_documents
+        
+        # Split text into chunks
         logger.info("Splitting text into chunks...")
-        chunks = text_splitter.create_documents(all_text)
+        chunks = chunk_documents(documents)
         logger.info(f"Created {len(chunks)} text chunks")
         
         # Create the retriever and build the index
         logger.info("Building FAISS index...")
-        retriever = MedicalDocumentRetriever(index_path=output_index_path)
+        if registry.get("retriever") is None:
+            retriever = MedicalDocumentRetriever(lazy_loading=True)
+        else:
+            # Use the existing retriever from the registry
+            logger.info("Using existing retriever from registry")
+            retriever = registry.get("retriever")
         retriever.create_index(chunks)
         logger.info(f"Index created successfully at {output_index_path}")
         

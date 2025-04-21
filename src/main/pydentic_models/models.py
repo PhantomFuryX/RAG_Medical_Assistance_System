@@ -2,22 +2,18 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from langchain.output_parsers import ResponseSchema
 
-class ChatRequest(BaseModel):
-    user_id: str
-    user_question: str
-    summary: str  # Could be a running string summary or memory summary
-
-class ChatResponse(BaseModel):
-    user_id: str
-    user_question: str
-    ai_response: dict
 
 class FeedbackRequest(BaseModel):
     user_id: Optional[str]
     query: str
     response: str
-    rating: Optional[int]  # 1-5 stars
+    rating: Optional[int]  = Field(None, ge=1, le=5, description="Rating from 1-5")
     notes: Optional[str]
+
+class FeedbackResponse(BaseModel):
+    success: bool
+    message: str
+    feedback_id: Optional[str]
 
 class RAGRequest(BaseModel):
     symptoms: str
@@ -51,13 +47,6 @@ class MChatResponse(BaseModel):
     rag_used: bool = Field(default=False, description="Whether RAG was used for this response")
     chat_id: Optional[str] = Field(default=None, description="The unique identifier for this chat exchange")
 
-class FeedbackRequest(BaseModel):
-    user_id: Optional[str] = None
-    query: str
-    response: str
-    rating: Optional[int] = None
-    feedback_text: str
-
 class DiagnosisRequest(BaseModel):
     user_id: Optional[str] = None
     symptoms: str
@@ -73,7 +62,38 @@ class DiagnosisResponse(BaseModel):
     recommendations: List[str]
     confidence: float
     disclaimer: str
-    
+
+from pydantic import BaseModel, Field
+from typing import Optional, List, Dict, Any
+from datetime import datetime
+
+class ChatRequest(BaseModel):
+    user_id: str = Field(..., description="Encrypted phone number used as user ID")
+    user_question: str = Field(..., description="User's medical question")
+
+class ChatResponse(BaseModel):
+    user_id: str
+    user_question: str
+    response: str
+    timestamp: Optional[datetime] = None
+
+class SummaryRequest(BaseModel):
+    user_id: str
+    max_words: int = Field(500, description="Maximum words in summary")
+
+class SummaryResponse(BaseModel):
+    user_id: str
+    summary: str
+    timestamp: Optional[datetime] = None
+
+class WhatsAppMessage(BaseModel):
+    phone_number: str
+    message: str
+    timestamp: Optional[datetime] = None
+
+class ConversationHistory(BaseModel):
+    user_id: str
+    conversations: List[Dict[str, Any]]
 response_schemas = [
     ResponseSchema(name="answer", description="Direct, user-friendly response to the question."),
     ResponseSchema(name="suggestion", description="Optional health or safety advice."),

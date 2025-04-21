@@ -1,8 +1,8 @@
 import os
-import logging
 from pymongo import MongoClient
 from typing import Optional
 from dotenv import load_dotenv
+from src.utils.logger import get_logger
 
 # Load environment variables from .env file if it exists
 load_dotenv()
@@ -13,11 +13,7 @@ MONGODB_URI = os.getenv("MONGODB_URI")
 DB_NAME = os.getenv("DB_NAME", "medical_assistant")
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+logger = get_logger("mongodb")
 
 # MongoDB client instance
 _client: Optional[MongoClient] = None

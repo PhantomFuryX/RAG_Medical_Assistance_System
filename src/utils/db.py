@@ -443,3 +443,78 @@ def get_chat_history_summary(user_id: str, max_chats: int = 5) -> str:
     
     return summary.strip()
 
+def get_summary_collection():
+    """Get the MongoDB collection for chat summaries"""
+    from src.utils.mongodb import get_database
+    db = get_database()
+    return db["chat_summaries"]
+
+def save_chat_summary(user_id: str, summary: str) -> Dict[str, Any]:
+    """
+    Save a chat summary to the database.
+    
+    Args:
+        user_id: Unique identifier for the user
+        summary: The generated summary of conversations
+        
+    Returns:
+        The saved summary document
+    """
+    try:
+        # Get the summary collection
+        collection = get_summary_collection()
+        
+        # Create the summary document
+        summary_doc = {
+            "user_id": user_id,
+            "content": summary,
+            "timestamp": datetime.now()
+        }
+        
+        # Insert the summary
+        result = collection.insert_one(summary_doc)
+        
+        # Add the _id to the document
+        summary_doc["_id"] = result.inserted_id
+        
+        return summary_doc
+    except Exception as e:
+        logger.error(f"Error saving chat summary: {str(e)}")
+        # Save to file system as fallback
+        fallback_file = os.path.join(CHAT_HISTORY_DIR, f"{user_id}_summary_{int(time.time())}.json")
+        with open(fallback_file, 'w') as f:
+            json.dump({"user_id": user_id, "content": summary, "timestamp": str(datetime.now())}, f)
+        
+        return {"user_id": user_id, "content": summary, "timestamp": datetime.now()}
+
+def get_user_summaries(user_id: str, limit: int = 5) -> List[Dict[str, Any]]:
+    """
+    Get the most recent summaries for a user.
+    
+    Args:
+        user_id: Unique identifier for the user
+        limit: Maximum number of summaries to retrieve
+        
+    Returns:
+        List of summary documents
+    """
+    try:
+        # Get the summary collection
+        collection = get_summary_collection()
+        
+        # Query for summaries
+        cursor = collection.find({"user_id": user_id}).sort("timestamp", -1).limit(limit)
+        
+        # Convert cursor to list
+        summaries = list(cursor)
+        
+        return summaries
+    except Exception as e:
+        logger.error(f"Error retrieving user summaries: {str(e)}")
+        return []
+    
+def get_summary_collection():
+    """Get the MongoDB collection for chat summaries"""
+    from src.utils.mongodb import get_database
+    db = get_database()
+    return db["chat_summaries"]

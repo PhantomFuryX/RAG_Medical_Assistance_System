@@ -3,6 +3,12 @@ from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import DirectoryLoader, TextLoader, PyPDFLoader
 from src.retrieval.document_retriever import MedicalDocumentRetriever
+from src.utils.logger import get_logger
+from pathlib import Path
+from src.data_processing.document_processor import process_and_chunk_documents
+from src.utils.registry import registry
+
+logger = get_logger(__name__)
 
 def load_documents(data_dir="../data/medical_texts"):
     """Load documents from the specified directory."""
@@ -46,6 +52,35 @@ def split_documents(documents, chunk_size=1000, chunk_overlap=200):
     print(f"Split {len(documents)} documents into {len(split_docs)} chunks")
     return split_docs
 
+def build_medical_index(documents_dir="src/data/medical_books", 
+                       index_path="src/data/faiss_medical_index",
+                       chunk_size=1000,
+                       chunk_overlap=200):
+    """Build a FAISS index from medical documents"""
+    # Get all PDF files in the documents directory
+    doc_paths = [os.path.join(documents_dir, f) for f in os.listdir(documents_dir) 
+                if f.endswith(".pdf")]
+    
+    logger.info(f"Found {len(doc_paths)} documents to process")
+    
+    # Process and chunk the documents
+    chunked_docs = process_and_chunk_documents(
+        doc_paths=doc_paths,
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap
+    )
+    
+    # Create the retriever and build the index
+    if registry.get("retriever") is None:
+        retriever = MedicalDocumentRetriever(lazy_loading=True)
+    else:
+        # Use the existing retriever from the registry
+        logger.info("Using existing retriever from registry")
+        retriever = registry.get("retriever")
+    retriever.create_index(chunked_docs)
+    
+    logger.info(f"Index created successfully at {index_path}")
+    return retriever
 def main():
     # Load documents
     documents = load_documents()
