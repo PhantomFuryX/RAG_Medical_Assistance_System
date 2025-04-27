@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, HTTPException, Query
 from datetime import datetime
 from src.main.pydentic_models.models import ChatRequest, ChatResponse
 from src.services.conversation_service import ConversationService
@@ -6,6 +6,8 @@ from src.main.core.llm_engine import generate_response, generate_response_with_r
 from src.utils.db_manager import db_manager
 from src.utils.encryption import UserIdEncryption
 from src.utils.logger import get_api_logger
+from src.main.pydentic_models.models import ChatHistoryResponse, ChatMessage
+from bson import ObjectId
 
 logger = get_api_logger()
 
@@ -26,7 +28,7 @@ async def chat_endpoint(request: ChatRequest, background_tasks: BackgroundTasks)
         response_data = await generate_response_with_rag(
             user_id=request.user_id,
             user_question=request.user_question,
-            chat_model='openai'  # You can make this configurable
+            chat_model='deepseek'  # You can make this configurable
         )
         
         # Extract the response text
@@ -50,14 +52,28 @@ async def chat_endpoint(request: ChatRequest, background_tasks: BackgroundTasks)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing request: {str(e)}")
 
-@router.get("/get_user_history/{user_id}", response_model=list[ChatResponse])
-async def get_user_history(user_id: str, limit: int = 10):
-    """
-    Get chat history for a specific user
-    """
+@router.get("/chat/history/{user_id}", response_model=ChatHistoryResponse)
+async def get_chat_history(
+    user_id: str,
+    limit: int = Query(10, ge=1, le=50),
+    db_manager = Depends(db_manager)
+):
+    """Get chat history for a user"""
     try:
-        history = await db_manager.get_chat_history(user_id, limit)
-        return {"history": history}
+        # Get chat history from database
+        history_cursor = db_manager.db.chat_history.find(
+            {"user_id": user_id}
+        ).sort("timestamp", -1).limit(limit)
+        
+        # Convert MongoDB documents to Pydantic models
+        history = []
+        async for doc in history_cursor:
+            # Convert ObjectId to string
+            doc["_id"] = str(doc["_id"])
+            history.append(ChatMessage(**doc))
+        
+        # Return the response
+        return ChatHistoryResponse(history=history)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving chat history: {str(e)}")
 

@@ -2,7 +2,7 @@ from pymongo import MongoClient, ASCENDING, DESCENDING
 from src.utils.mongodb import get_database, get_chat_collection
 from fastapi import BackgroundTasks
 import os
-from src.retrieval.document_retriever import initialize_retriever
+from retrieval.document_retriever import initialize_retriever
 from src.data_processing.document_processor import process_and_chunk_documents
 from src.retrieval.document_retriever import MedicalDocumentRetriever
 from src.data_processing.build_index import build_medical_index

@@ -3,19 +3,19 @@ from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import DirectoryLoader, TextLoader, PyPDFLoader
 from src.retrieval.document_retriever import MedicalDocumentRetriever
-from src.utils.logger import get_logger
+from src.utils.logger import get_data_logger
 from pathlib import Path
 from src.data_processing.document_processor import process_and_chunk_documents
 from src.utils.registry import registry
 
-logger = get_logger(__name__)
+logger = get_data_logger()
 
 def load_documents(data_dir="../data/medical_texts"):
     """Load documents from the specified directory."""
     if not os.path.exists(data_dir):
         os.makedirs(data_dir, exist_ok=True)
-        print(f"Created directory {data_dir}. Please add medical files to this directory.")
-        print("Example: Add .pdf or .txt files containing medical information.")
+        logger.info(f"Created directory {data_dir}. Please add medical files to this directory.")
+        logger.info("Example: Add .pdf or .txt files containing medical information.")
         return []
     
     documents = []
@@ -23,19 +23,19 @@ def load_documents(data_dir="../data/medical_texts"):
         # Load PDF files
         pdf_loader = DirectoryLoader(data_dir, glob="**/*.pdf", loader_cls=PyPDFLoader)
         pdf_docs = pdf_loader.load()
-        print(f"Loaded {len(pdf_docs)} PDF documents from {data_dir}")
+        logger.info(f"Loaded {len(pdf_docs)} PDF documents from {data_dir}")
         documents.extend(pdf_docs)
         
         # Load text files
         txt_loader = DirectoryLoader(data_dir, glob="**/*.txt", loader_cls=TextLoader)
         txt_docs = txt_loader.load()
-        print(f"Loaded {len(txt_docs)} text documents from {data_dir}")
+        logger.info(f"Loaded {len(txt_docs)} text documents from {data_dir}")
         documents.extend(txt_docs)
         
-        print(f"Total documents loaded: {len(documents)}")
+        logger.info(f"Total documents loaded: {len(documents)}")
         return documents
     except Exception as e:
-        print(f"Error loading documents: {e}")
+        logger.error(f"Error loading documents: {e}")
         return documents  # Return any documents that were loaded before the error
 
 def split_documents(documents, chunk_size=1000, chunk_overlap=200):
@@ -49,7 +49,7 @@ def split_documents(documents, chunk_size=1000, chunk_overlap=200):
     )
     
     split_docs = text_splitter.split_documents(documents)
-    print(f"Split {len(documents)} documents into {len(split_docs)} chunks")
+    logger.info(f"Split {len(documents)} documents into {len(split_docs)} chunks")
     return split_docs
 
 def build_medical_index(documents_dir="src/data/medical_books", 
@@ -81,11 +81,12 @@ def build_medical_index(documents_dir="src/data/medical_books",
     
     logger.info(f"Index created successfully at {index_path}")
     return retriever
+
 def main():
     # Load documents
     documents = load_documents()
     if not documents:
-        print("No documents found. Please add PDF or text documents to the data directory.")
+        logger.warning("No documents found. Please add PDF or text documents to the data directory.")
         return
     
     # Split documents into chunks
@@ -94,15 +95,16 @@ def main():
     # Create the retriever and build the index
     retriever = MedicalDocumentRetriever(index_path="faiss_medical_index")
     retriever.create_index(split_docs)
-    print("Index created successfully!")
+    logger.info("Index created successfully!")
     
     # Test the retriever
     query = "What are the symptoms of pneumonia?"
     results = retriever.retrieve(query)
-    print("\nTest query results:")
+    logger.info("\nTest query results:")
     for i, doc in enumerate(results):
-        print(f"\nResult {i+1}:")
-        print(doc.page_content[:200] + "..." if len(doc.page_content) > 200 else doc.page_content)
+        logger.info(f"\nResult {i+1}:")
+        content_preview = doc.page_content[:200] + "..." if len(doc.page_content) > 200 else doc.page_content
+        logger.info(content_preview)
 
 if __name__ == "__main__":
     main()

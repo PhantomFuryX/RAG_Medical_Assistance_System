@@ -3,7 +3,7 @@ import logging
 from typing import List, Dict, Any
 import faiss
 import numpy as np
-from src.retrieval.document_retriever import DocumentRetriever
+from retrieval.document_retriever import DocumentRetriever
 
 logger = logging.getLogger(__name__)
 

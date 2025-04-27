@@ -94,6 +94,25 @@ class WhatsAppMessage(BaseModel):
 class ConversationHistory(BaseModel):
     user_id: str
     conversations: List[Dict[str, Any]]
+    
+class ChatMessage(BaseModel):
+    id: str = Field(alias="_id")
+    user_id: str
+    timestamp: datetime
+    user_question: str
+    assistant_response: str
+    source_documents: List[str]
+    rag_used: bool
+    
+    class Config:
+        populate_by_name = True
+        json_encoders = {
+            datetime: lambda dt: dt.isoformat()
+        }
+
+class ChatHistoryResponse(BaseModel):
+    history: List[ChatMessage]
+    
 response_schemas = [
     ResponseSchema(name="answer", description="Direct, user-friendly response to the question."),
     ResponseSchema(name="suggestion", description="Optional health or safety advice."),

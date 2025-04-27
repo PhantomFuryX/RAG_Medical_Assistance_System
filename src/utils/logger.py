@@ -17,6 +17,8 @@ DB_LOG_FILE = os.path.join(LOGS_DIR, "database.log")
 LLM_LOG_FILE = os.path.join(LOGS_DIR, "llm.log")
 SERVER_LOG_FILE = os.path.join(LOGS_DIR, "server.log")
 ACCESS_LOG_FILE = os.path.join(LOGS_DIR, "access.log")
+RETRIEVER_LOG_FILE = os.path.join(LOGS_DIR, "retriever.log")
+APP_LOG_FILE = os.path.join(LOGS_DIR, "app.log")
 
 # Log format
 LOG_FORMAT = "%(asctime)s - %(name)s - %(filename)s::%(funcName)s - %(levelname)s - %(message)s"
@@ -109,6 +111,14 @@ def get_server_logger():
 def get_access_logger():
     """Get logger for access logs"""
     return get_logger("access", ACCESS_LOG_FILE)
+
+def get_data_logger() -> logging.Logger:
+    """Get a logger for data processing"""
+    return get_logger("data", RETRIEVER_LOG_FILE)
+
+def get_app_logger() -> logging.Logger:
+    """Get a logger for app initalization"""
+    return get_logger("app", APP_LOG_FILE)
 
 # Create a log configuration dictionary for Uvicorn
 def get_uvicorn_log_config():

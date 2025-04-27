@@ -12,8 +12,12 @@ from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_core.documents import Document
 from src.main.pydentic_models.models import DTQueryRequest, DTQueryResponse
 from src.retrieval.document_retriever import MedicalDocumentRetriever
+from src.data_processing.document_processor import chunk_documents
 import tempfile
+from src.utils.logger import get_api_logger
+from src.utils.registry import registry
 
+logger = get_api_logger()
 router = APIRouter(prefix="/documents", tags=["DOCUMENTS"])
 
 # Define directories
@@ -31,6 +35,12 @@ retriever = MedicalDocumentRetriever(index_path=FAISS_INDEX_DIR)
 index_loaded = retriever.index is not None
 
 def get_retriever():
+    if registry.get("retriever") is None:
+            retriever = MedicalDocumentRetriever(index_path=FAISS_INDEX_DIR)
+    else:
+        # Use the existing retriever from the registry
+        logger.info("Using existing retriever from registry")
+        retriever = registry.get("retriever")
     return retriever
 
 def process_document(file_path: str) -> List[Document]:
@@ -44,13 +54,7 @@ def process_document(file_path: str) -> List[Document]:
     
     documents = loader.load()
     
-    # Split documents into chunks
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,
-        chunk_overlap=200,
-    )
-    
-    split_docs = text_splitter.split_documents(documents)
+    split_docs = chunk_documents(documents, chunk_size=1000, chunk_overlap=0)
     return split_docs
 
 def update_vector_database(file_path: str):
@@ -87,11 +91,7 @@ def update_vector_database(file_path: str):
             raise ValueError(f"Unsupported file type: {file_path}")
         
         # Split documents into chunks
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=200
-        )
-        chunks = text_splitter.create_documents(all_text)
+        chunks = chunk_documents(all_text, chunk_size=1000, chunk_overlap=0)
         
         # Create embeddings with CUDA support
         embeddings = HuggingFaceEmbeddings(
@@ -118,7 +118,7 @@ def update_vector_database(file_path: str):
         
         # Update the global retriever with the new index
         global retriever, index_loaded
-        retriever = MedicalDocumentRetriever(index_path=FAISS_INDEX_DIR)
+        retriever = get_retriever
         index_loaded = retriever.index is not None
         
         processing_status[file_name] = "completed"

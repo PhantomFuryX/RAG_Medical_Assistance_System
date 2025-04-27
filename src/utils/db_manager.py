@@ -700,6 +700,10 @@ class DatabaseManager:
             self.client = None
             self.db = None
             logger.info("Database connection closed")
+    
+    def __call__(self):
+        """Return the instance itself when called."""
+        return self
 
 # Create a singleton instance for easy import
 db_manager = DatabaseManager()

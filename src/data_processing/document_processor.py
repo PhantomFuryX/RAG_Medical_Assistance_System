@@ -9,10 +9,27 @@ import pickle
 import hashlib
 from pdf2image import convert_from_path
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from src.utils.logger import get_logger
+from src.utils.logger import get_data_logger
 from src.utils.registry import registry
 
-logger = get_logger("data_processing")
+logger = get_data_logger()
+
+def get_process_pool(max_workers=None):
+    """Get or create a process pool from registry"""
+    if registry.has("process_pool_executor"):
+        executor = registry.get("process_pool_executor")
+        # Check if we need a new executor with different worker count
+        if executor._max_workers != max_workers and max_workers is not None:
+            executor.shutdown(wait=True)
+            executor = ProcessPoolExecutor(max_workers=max_workers)
+            registry.set("process_pool_executor", executor)
+    else:
+        if max_workers is None:
+            max_workers = max(1, multiprocessing.cpu_count() - 1)
+        executor = ProcessPoolExecutor(max_workers=max_workers)
+        registry.set("process_pool_executor", executor)
+    
+    return executor
 
 def process_documents_in_parallel(doc_paths: List[str], 
                                  pdf_folder: str = "src/data/medical_books",
@@ -40,10 +57,27 @@ def process_documents_in_parallel(doc_paths: List[str],
     
     logger.info(f"Processing {len(doc_paths)} documents using {max_workers} workers")
     
+    # Check if we already have a document processor in registry
+    if registry.has("document_processor"):
+        processor = registry.get("document_processor")
+        logger.info("Using document processor from registry")
+        
+        # Process all documents using the processor
+        all_text_content = []
+        for doc_path in doc_paths:
+            try:
+                text_content = processor.process_single_pdf(doc_path, extract_images=extract_images)
+                all_text_content.extend(text_content)
+            except Exception as e:
+                logger.error(f"Error processing document {doc_path}: {e}")
+        
+        # Convert text content to Document objects
+        documents = [Document(page_content=text) for text in all_text_content]
+        return documents
+    
     # Define a worker function that processes a single document
     def process_single_doc(doc_path: str) -> List[str]:
         try:
-            
             # Generate a cache file path
             file_name = os.path.basename(doc_path)
             mod_time = os.path.getmtime(doc_path)
@@ -70,7 +104,6 @@ def process_documents_in_parallel(doc_paths: List[str],
             # Extract images if requested
             if extract_images:
                 try:
-                    
                     file_name = os.path.basename(doc_path)
                     image_cache_path = os.path.join(cache_dir, f"{file_name}_images.pkl")
                     
@@ -103,21 +136,52 @@ def process_documents_in_parallel(doc_paths: List[str],
     
     all_text_content = []
     
+    # Get or create process pool from registry
+    executor = get_process_pool(max_workers)
+    
     # Process documents in parallel
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        futures = [executor.submit(process_single_doc, path) for path in doc_paths]
-        for future in futures:
-            try:
-                result = future.result()
-                all_text_content.extend(result)
-            except Exception as e:
-                logger.error(f"Error retrieving document processing result: {e}")
+        # Process documents in parallel
+    futures = [executor.submit(process_single_doc, path) for path in doc_paths]
+    for future in futures:
+        try:
+            result = future.result()
+            all_text_content.extend(result)
+        except Exception as e:
+            logger.error(f"Error retrieving document processing result: {e}")
     
     # Convert text content to Document objects
     documents = [Document(page_content=text) for text in all_text_content]
     
     logger.info(f"Processed {len(doc_paths)} documents into {len(documents)} Document objects")
+    
+    # Create a document processor and store in registry for future use
+    from src.data_processing.document_loader import MedicalDocumentProcessor
+    processor = MedicalDocumentProcessor(
+        pdf_folder=pdf_folder,
+        image_output_folder=image_output_folder,
+        cache_dir=cache_dir
+    )
+    registry.set("document_processor", processor)
+    
     return documents
+
+def get_text_splitter(chunk_size=1000, chunk_overlap=200):
+    """Get or create a text splitter from registry"""
+    splitter_key = f"text_splitter_{chunk_size}_{chunk_overlap}"
+    
+    if registry.has(splitter_key):
+        return registry.get(splitter_key)
+    
+    # Create a new text splitter
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+        length_function=len,
+    )
+    
+    # Store in registry
+    registry.set(splitter_key, text_splitter)
+    return text_splitter
 
 def chunk_documents(documents, chunk_size=1000, chunk_overlap=200):
     """
@@ -134,12 +198,8 @@ def chunk_documents(documents, chunk_size=1000, chunk_overlap=200):
     
     logger.info(f"Chunking {len(documents)} documents (size={chunk_size}, overlap={chunk_overlap})")
     
-    # Create a text splitter
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
-        length_function=len,
-    )
+    # Get text splitter from registry or create new one
+    text_splitter = get_text_splitter(chunk_size, chunk_overlap)
     
     # Split the documents
     chunked_docs = text_splitter.split_documents(documents)
@@ -163,10 +223,31 @@ def process_and_chunk_documents(doc_paths: List[str],
     Returns:
         List of chunked Document objects
     """
+    # Check if we have cached chunked documents
+    cache_key = f"chunked_docs_{','.join(sorted(doc_paths))}_{chunk_size}_{chunk_overlap}"
+    cache_hash = hashlib.md5(cache_key.encode()).hexdigest()
+    cache_path = f"src/data/cache/chunked_docs_{cache_hash}.pkl"
+    
+    # Check if cache exists and is valid
+    if os.path.exists(cache_path):
+        # Check if any source document is newer than the cache
+        cache_mtime = os.path.getmtime(cache_path)
+        if not any(os.path.getmtime(path) > cache_mtime for path in doc_paths):
+            logger.info("Loading chunked documents from cache")
+            with open(cache_path, 'rb') as f:
+                return pickle.load(f)
+    
     # Process the documents
     documents = process_documents_in_parallel(doc_paths, max_workers=max_workers)
     
     # Chunk the documents
     chunked_docs = chunk_documents(documents, chunk_size, chunk_overlap)
     
+    # Cache the chunked documents
+    os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+    with open(cache_path, 'wb') as f:
+        pickle.dump(chunked_docs, f)
+    logger.info(f"Cached {len(chunked_docs)} chunked documents")
+    
     return chunked_docs
+

@@ -5,9 +5,11 @@ import json
 import os
 import time
 from src.utils.db_manager import db_manager
+from src.utils.logger import get_api_logger
+import uuid
 
 router = APIRouter(prefix="/feedback", tags=["FEEDBACK"])
-
+logger = get_api_logger()
 FEEDBACK_DIR = "src/data/feedback"
 os.makedirs(FEEDBACK_DIR, exist_ok=True)
 
@@ -19,6 +21,7 @@ async def submit_feedback(request: FeedbackRequest):
     try:
         # Create feedback data
         feedback_data = {
+            "feedback_id": str(uuid.uuid4()),  # Unique ID based on timestamp
             "user_id": request.user_id,
             "query": request.query,
             "response": request.response,
@@ -28,6 +31,7 @@ async def submit_feedback(request: FeedbackRequest):
         
         # Save feedback
         saved_feedback = await db_manager.save_feedback(feedback_data)
+        logger.info(f"Feedback received: ID={feedback_data['feedback_id']}, Rating={request}, Notes={request.notes}")
         
         return FeedbackResponse(
             success=True,
