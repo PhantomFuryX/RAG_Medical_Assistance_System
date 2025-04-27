@@ -1,5 +1,8 @@
 import psutil
+import time
+from src.utils.logger import get_app_logger
 
+logger = get_app_logger()
 def get_cpu_info():
     """
     Returns information about CPU utilization and system details, including P-core and E-core utilization.
@@ -44,3 +47,10 @@ def print_cpu_info():
     print(f"  - E-Cores ({info['e_core_count']}):")
     for i, percent in enumerate(info["e_core_utilization"]):
         print(f"    E-Core {i}: {percent:.2f}%")
+
+def log_cpu_memory_usage(interval=60):
+    while True:
+        cpu = psutil.cpu_percent()
+        mem = psutil.virtual_memory().percent
+        logger.info(f"CPU: {cpu}%, Memory: {mem}%")
+        time.sleep(interval)

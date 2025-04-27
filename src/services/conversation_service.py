@@ -3,7 +3,9 @@ import datetime
 import json
 import os
 import logging
+import html
 from src.utils.db_manager import db_manager
+from src.main.core.llm_engine import generate_response
 
 logger = logging.getLogger("conversation_service")
 
@@ -47,12 +49,14 @@ class ConversationService:
             conversation_text = ""
             for conv in conversations:
                 conversation_text += f"User: {conv.get('user_question', '')}\nAssistant: {conv.get('assistant_response', '')}\n\n"
+            # Escape HTML characters in conversation_text
+            safe_conversation_text = html.escape(conversation_text)
             
             # Use the summary_generation_prompt from prompts.json
             summary_prompt = self.prompts.get("summary_generation_prompt", {})
             if summary_prompt:
                 template = summary_prompt.get("template", "")
-                prompt = template.replace("{conversation_text}", conversation_text).replace("{max_words}", str(max_words))
+                prompt = template.replace("{conversation_text}", safe_conversation_text).replace("{max_words}", str(max_words))
             else:
                 # Fallback prompt
                 prompt = f"""
@@ -61,14 +65,13 @@ class ConversationService:
                 Limit the summary to approximately {max_words} words.
                 
                 Conversation history:
-                {conversation_text}
+                {safe_conversation_text}
                 
                 Summary:
                 """
             
             # Generate summary using LLM
-            from src.main.core.llm_engine import generate_response
-            summary = generate_response(prompt)
+            summary = await self._generate_response_async(prompt)
             
             # Store the summary
             await db_manager.save_chat_summary(user_id, summary)
@@ -131,10 +134,19 @@ class ConversationService:
                 """
             
             # Generate cumulative summary using LLM
-            from src.main.core.llm_engine import generate_response
-            cumulative_summary = generate_response(prompt)
+            cumulative_summary = await self._generate_response_async(prompt)
             
             return cumulative_summary
         except Exception as e:
             logger.error(f"Error generating cumulative summary: {str(e)}")
             return ""
+    
+    async def _generate_response_async(self, prompt: str) -> str:
+        # If generate_response is async, use await; otherwise, run in executor
+        import asyncio
+        loop = asyncio.get_event_loop()
+        try:
+            return await loop.run_in_executor(None, generate_response, prompt)
+        except Exception as e:
+            logger.error(f"LLM generation failed: {e}")
+            return "Sorry, I couldn't generate a summary at this time."

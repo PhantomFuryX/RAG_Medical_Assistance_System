@@ -138,16 +138,16 @@ def process_documents_in_parallel(doc_paths: List[str],
     
     # Get or create process pool from registry
     executor = get_process_pool(max_workers)
-    
-    # Process documents in parallel
-        # Process documents in parallel
-    futures = [executor.submit(process_single_doc, path) for path in doc_paths]
-    for future in futures:
-        try:
-            result = future.result()
-            all_text_content.extend(result)
-        except Exception as e:
-            logger.error(f"Error retrieving document processing result: {e}")
+    try:
+        futures = [executor.submit(process_single_doc, path) for path in doc_paths]
+        for future in futures:
+            try:
+                result = future.result()
+                all_text_content.extend(result)
+            except Exception as e:
+                logger.error(f"Error retrieving document processing result: {e}")
+    finally:
+        executor.shutdown(wait=True)
     
     # Convert text content to Document objects
     documents = [Document(page_content=text) for text in all_text_content]
@@ -185,25 +185,16 @@ def get_text_splitter(chunk_size=1000, chunk_overlap=200):
 
 def chunk_documents(documents, chunk_size=1000, chunk_overlap=200):
     """
-    Split documents into smaller chunks for more efficient processing
-    
-    Args:
-        documents: List of Document objects
-        chunk_size: Size of each chunk in characters
-        chunk_overlap: Overlap between chunks in characters
-        
-    Returns:
-        List of chunked Document objects
+    Split documents into smaller chunks for more efficient processing, with progress logging.
     """
-    
     logger.info(f"Chunking {len(documents)} documents (size={chunk_size}, overlap={chunk_overlap})")
-    
-    # Get text splitter from registry or create new one
     text_splitter = get_text_splitter(chunk_size, chunk_overlap)
-    
-    # Split the documents
-    chunked_docs = text_splitter.split_documents(documents)
-    
+    chunked_docs = []
+    for i, doc in enumerate(documents):
+        chunks = text_splitter.split_documents([doc])
+        chunked_docs.extend(chunks)
+        if i % 100 == 0 and i > 0:
+            logger.info(f"Chunked {i} / {len(documents)} documents")
     logger.info(f"Created {len(chunked_docs)} chunks from {len(documents)} documents")
     return chunked_docs
 

@@ -82,11 +82,13 @@ class EmbeddingManager:
                 logger.error(f"Error initializing embeddings: {e}")
                 self._model = None
     
-    def embed_documents(self, texts):
+    def embed_documents(self, texts, batch_size=None):
         """Embed multiple documents with caching and batching"""
         if not texts:
             return []
-            
+        
+        if batch_size is None:
+            batch_size = self._batch_size    
         results = []
         uncached_texts = []
         uncached_indices = []

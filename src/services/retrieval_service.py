@@ -25,7 +25,7 @@ class RetrievalService:
                 logger.error(f"Failed to initialize retrieval service: {str(e)}")
                 raise
     
-    async def get_relevant_context(self, query: str, top_k: int = 5) -> str:
+    async def get_relevant_context(self, query: str, top_k: int = 5) -> Dict[str, Any]:
         """
         Retrieve relevant context for a query
         
@@ -41,13 +41,14 @@ class RetrievalService:
             
         try:
             results = self.retriever.search(query, top_k=top_k)
-            
+
             if not results:
-                return ""
-                
-            # Concatenate the text from retrieved documents
+                return {"context": "", "documents": []}
             context = "\n\n".join([doc["text"] for doc in results])
-            return context
+            return {
+                "context": context,
+                "documents": results  # includes metadata if available
+            }
         except Exception as e:
             logger.error(f"Error retrieving context: {str(e)}")
-            return ""
+            return {"context": "", "documents": []}

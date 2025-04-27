@@ -78,7 +78,8 @@ def get_logger(module_name, log_file=None):
         Configured logger instance
     """
     logger = logging.getLogger(module_name)
-    
+    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+    logger.setLevel(log_level)
     # If a specific log file is provided, add a file handler for it
     if log_file and not any(isinstance(h, RotatingFileHandler) for h in logger.handlers):
         handler = RotatingFileHandler(
@@ -87,7 +88,8 @@ def get_logger(module_name, log_file=None):
             backupCount=3
         )
         handler.setFormatter(logging.Formatter(LOG_FORMAT, DATE_FORMAT))
-        logger.addHandler(handler)
+        if not logger.handlers:
+            logger.addHandler(handler)
     
     return logger
 

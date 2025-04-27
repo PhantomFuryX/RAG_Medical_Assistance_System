@@ -10,8 +10,10 @@ from src.utils.registry import registry
 
 logger = get_data_logger()
 
-def load_documents(data_dir="../data/medical_texts"):
+def load_documents(data_dir="../data/medical_texts", file_types=None):
     """Load documents from the specified directory."""
+    if file_types is None:
+        file_types = ["pdf", "txt"]
     if not os.path.exists(data_dir):
         os.makedirs(data_dir, exist_ok=True)
         logger.info(f"Created directory {data_dir}. Please add medical files to this directory.")
@@ -20,23 +22,17 @@ def load_documents(data_dir="../data/medical_texts"):
     
     documents = []
     try:
-        # Load PDF files
-        pdf_loader = DirectoryLoader(data_dir, glob="**/*.pdf", loader_cls=PyPDFLoader)
-        pdf_docs = pdf_loader.load()
-        logger.info(f"Loaded {len(pdf_docs)} PDF documents from {data_dir}")
-        documents.extend(pdf_docs)
-        
-        # Load text files
-        txt_loader = DirectoryLoader(data_dir, glob="**/*.txt", loader_cls=TextLoader)
-        txt_docs = txt_loader.load()
-        logger.info(f"Loaded {len(txt_docs)} text documents from {data_dir}")
-        documents.extend(txt_docs)
-        
+        for ext in file_types:
+            loader_cls = PyPDFLoader if ext == "pdf" else TextLoader
+            loader = DirectoryLoader(data_dir, glob=f"**/*.{ext}", loader_cls=loader_cls)
+            docs = loader.load()
+            logger.info(f"Loaded {len(docs)} {ext.upper()} documents from {data_dir}")
+            documents.extend(docs)
         logger.info(f"Total documents loaded: {len(documents)}")
         return documents
     except Exception as e:
         logger.error(f"Error loading documents: {e}")
-        return documents  # Return any documents that were loaded before the error
+        return documents
 
 def split_documents(documents, chunk_size=1000, chunk_overlap=200):
     """Split documents into chunks for better embedding."""
@@ -56,25 +52,38 @@ def build_medical_index(documents_dir="src/data/medical_books",
                        index_path="src/data/faiss_medical_index",
                        chunk_size=1000,
                        chunk_overlap=200):
-    """Build a FAISS index from medical documents"""
-    # Get all PDF files in the documents directory
-    doc_paths = [os.path.join(documents_dir, f) for f in os.listdir(documents_dir) 
-                if f.endswith(".pdf")]
-    
+    """
+    Build a FAISS index from medical documents, with incremental update support.
+    """
+    doc_paths = [os.path.join(documents_dir, f) for f in os.listdir(documents_dir) if f.endswith(".pdf")]
     logger.info(f"Found {len(doc_paths)} documents to process")
-    
-    # Process and chunk the documents
-    chunked_docs = process_and_chunk_documents(
-        doc_paths=doc_paths,
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap
-    )
-    
-    # Create the retriever and build the index
+
+    # Check for incremental update
+    from src.retrieval.document_retriever import update_index_incrementally
+    updated_files = update_index_incrementally(documents_dir, index_path)
+    if updated_files is False:
+        # Full rebuild
+        chunked_docs = process_and_chunk_documents(
+            doc_paths=doc_paths,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap
+        )
+    elif isinstance(updated_files, list) and updated_files:
+        # Only process new/modified files
+        doc_paths = [os.path.join(documents_dir, f) for f in updated_files]
+        chunked_docs = process_and_chunk_documents(
+            doc_paths=doc_paths,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap
+        )
+    else:
+        logger.info("No new or updated documents found. Skipping index update.")
+        return
+
+    # Create or update the retriever
     if registry.get("retriever") is None:
         retriever = MedicalDocumentRetriever(lazy_loading=True)
     else:
-        # Use the existing retriever from the registry
         logger.info("Using existing retriever from registry")
         retriever = registry.get("retriever")
     retriever.create_index(chunked_docs)

@@ -94,6 +94,15 @@ class MedicalDocumentRetriever:
             logger.error(f"Error initializing embeddings: {e}")
             self._embeddings = None
     
+    def _batch_embed_documents(self, texts, batch_size=256):
+        """Embed documents in batches to avoid memory issues."""
+        embeddings = []
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i:i+batch_size]
+            batch_embeddings = self.embedding_manager.embed_documents(batch)
+            embeddings.extend(batch_embeddings)
+        return embeddings
+    
     def _load_index_in_background(self):
         """Load the index in a background thread"""
         try:
@@ -237,7 +246,7 @@ class MedicalDocumentRetriever:
             metadatas = [doc.metadata for doc in documents]
             
             # Create embeddings - use embedding manager from registry
-            embeddings_list = self.embedding_manager.embed_documents(texts)
+            embeddings_list = self._batch_embed_documents(texts)
             
             # Convert to numpy array
             embeddings_array = np.array(embeddings_list).astype('float32')
@@ -526,7 +535,7 @@ class MedicalDocumentRetriever:
             metadatas = [doc.metadata for doc in shard_docs]
             
             # Create embeddings
-            embeddings_list = self.embedding_manager.embed_documents(texts)
+            embeddings_list = self._batch_embed_documents(texts)
             
             # Convert to numpy array
             embeddings_array = np.array(embeddings_list).astype('float32')
@@ -581,29 +590,41 @@ def initialize_retriever(documents_path: str = "src/data/medical_books",
     # Initialize the retriever with the specified paths
     retriever = MedicalDocumentRetriever(
         index_path=embeddings_path,
-        lazy_loading=False  # Load immediately since this is a background task
+        lazy_loading=False
     )
-    
-    # If no index exists, try to create one from documents
-    if not os.path.exists(os.path.join(embeddings_path, "index.faiss")):
-        try:
-            
-            # Try to load documents from the documents directory
-            loader = DirectoryLoader(
-                documents_path,
-                glob="**/*.pdf",
-                loader_cls=TextLoader
-            )
-            documents = loader.load()
-            
-            if documents:
-                retriever.create_index(documents)
-                logger.info(f"Created new index with {len(documents)} documents")
-            else:
-                logger.warning(f"No documents found in {documents_path}")
-        except Exception as e:
-            logger.error(f"Error creating index: {str(e)}")
-    
+
+    # Incremental update logic
+    updated_files = update_index_incrementally(documents_path, embeddings_path)
+    if updated_files is False:
+        # Full rebuild needed
+        loader = DirectoryLoader(
+            documents_path,
+            glob="**/*.pdf",
+            loader_cls=TextLoader
+        )
+        documents = loader.load()
+        if documents:
+            retriever.create_index(documents)
+            logger.info(f"Created new index with {len(documents)} documents")
+        else:
+            logger.warning(f"No documents found in {documents_path}")
+    elif isinstance(updated_files, list) and updated_files:
+        # Only process new/modified files
+        loader = DirectoryLoader(
+            documents_path,
+            glob="**/*.pdf",
+            loader_cls=TextLoader
+        )
+        all_documents = loader.load()
+        # Filter only updated files
+        documents = [doc for doc in all_documents if os.path.basename(doc.metadata.get("source", "")) in updated_files]
+        if documents:
+            retriever.add_documents(documents)
+            logger.info(f"Incretally udated idex with {len(documents)} documents")
+        else:
+            logger.warning(f"No documents found in {documents_path}")
+    else:
+        logger.info("No new or modified documents found, using existing index")
     # Store in registry
     registry.set("document_retriever", retriever)
     return retriever
@@ -651,7 +672,7 @@ def retrieve_relevant_documents(query: str, top_k: int = 3) -> Dict[str, Any]:
         logger.error(f"Error retrieving documents: {str(e)}")
         return {"query": query, "documents": [], "scores": []}
 
-def update_index_incrementally(self, documents_path, index_path):
+def update_index_incrementally(documents_path, index_path):
     """Update the index incrementally by only processing new or modified documents"""
     # Get list of all PDF files
     pdf_files = [f for f in os.listdir(documents_path) if f.lower().endswith(".pdf")]
