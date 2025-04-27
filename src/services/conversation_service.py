@@ -5,7 +5,6 @@ import os
 import logging
 import html
 from src.utils.db_manager import db_manager
-from src.main.core.llm_engine import generate_response
 
 logger = logging.getLogger("conversation_service")
 
@@ -146,6 +145,7 @@ class ConversationService:
         import asyncio
         loop = asyncio.get_event_loop()
         try:
+            from src.main.core.llm_engine import generate_response
             return await loop.run_in_executor(None, generate_response, prompt)
         except Exception as e:
             logger.error(f"LLM generation failed: {e}")
