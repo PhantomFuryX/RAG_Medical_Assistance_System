@@ -190,6 +190,10 @@ class MedicalDocumentRetriever:
         if self.index is None:
             logger.warning("No index available for retrieval")
             return []
+        # Defensive type check
+        if isinstance(self.index, list):
+            logger.error(f"Index is a list, not a FAISS index. Type: {type(self.index)}. This indicates a bug in index assignment.")
+            return []
         
         # Perform retrieval
         try:
