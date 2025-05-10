@@ -3,11 +3,12 @@ from pydantic import BaseModel
 from src.pipeline.diagonosis_pipeline import DiagnosisPipeline
 from src.retrieval.document_retriever import MedicalDocumentRetriever
 from src.nlp.diagnosis_chain import build_diagnosis_chain
-from src.utils.config import DEEPSEEK_API_KEY
+from src.utils.settings import Settings
 from src.main.pydentic_models.models import RAGRequest, RAGResponse
 from src.utils.db_manager import db_manager
 from src.utils.registry import registry
 from src.utils.logger import get_api_logger
+from src.utils.settings import settings
 
 logger = get_api_logger()
 
@@ -27,7 +28,7 @@ except Exception as e:
     print(f"Error initializing retriever: {e}")
     retriever = None
     index_loaded = False
-diagnosis_chain = build_diagnosis_chain('deepseek')
+diagnosis_chain = build_diagnosis_chain(settings.MODEL_API)
 pipeline = DiagnosisPipeline()
 
 

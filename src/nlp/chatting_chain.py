@@ -8,6 +8,7 @@ from langchain.output_parsers import ResponseSchema, StructuredOutputParser
 from textblob import TextBlob
 # from src.utils.config import OPENAI_API_KEY
 from src.utils.config import DEEPSEEK_API_KEY
+from src.utils.settings import settings
 import os
 from src.main.core.llm_engine import ChatboxAI
 from src.main.pydentic_models.models import response_schemas
@@ -46,7 +47,7 @@ def load_prompt_template(messages):
 
 def get_llm_response(user_question: str, summary: str):
 
-    chain = build_chatting_chain('deepseek')
+    chain = build_chatting_chain(settings.MODEL_API)
     
     input_data = {
         "summary": summary,
@@ -106,6 +107,6 @@ def build_chat_chain(chat_model, summary, user_question):
 
 # Example Usage
 if __name__ == "__main__":
-    chain = build_chatting_chain('deepseek')
+    chain = build_chatting_chain(settings.MODEL_API)
     raw_response = chain.run(summary="", user_question="")
     print(raw_response)

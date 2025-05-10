@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from src.main.pydentic_models.models import MChatRequest, MChatResponse
 from src.retrieval.document_retriever import MedicalDocumentRetriever
 from src.utils.db import get_chat_history
+from src.utils.settings import settings
 from src.utils.gen_utils import get_prompt_template, load_prompt_template
 from src.main.pydentic_models.models import response_schemas, MChatResponse, response_schemas_rag
 from langchain.output_parsers import PydanticOutputParser, StructuredOutputParser
@@ -68,7 +69,7 @@ async def medical_chat(
         # Get format instructions for the prompt
         format_instructions = augmented_output_parser.get_format_instructions()
         augmented_prompt = load_prompt_template(prompt_data["medical_assistant_prompt_with_context"], format_instructions)
-        model = ChatboxAI('deepseek')
+        model = ChatboxAI(settings.MODEL_API)
         print ("Prompt: ", augmented_prompt)
         chain = augmented_prompt | model
         # Get response from OpenAI with the augmented prompt
@@ -103,7 +104,7 @@ async def medical_chat(
         # Get format instructions for the prompt
         format_instructions = fallback_output_parser.get_format_instructions()
         fallback_prompt = load_prompt_template(prompt_data["medical_assistant_fallback_prompt"], format_instructions)
-        model = ChatboxAI('deepseek')
+        model = ChatboxAI(settings.MODEL_API)
         chain = fallback_prompt | model 
         # Get response from OpenAI with the fallback prompt
         raw_response = chain.invoke({"user_question": user_question})

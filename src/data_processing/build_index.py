@@ -7,6 +7,7 @@ from src.utils.logger import get_data_logger
 from pathlib import Path
 from src.data_processing.document_processor import process_and_chunk_documents
 from src.utils.registry import registry
+from src.utils.settings import settings
 
 logger = get_data_logger()
 
@@ -34,7 +35,7 @@ def load_documents(data_dir="../data/medical_texts", file_types=None):
         logger.error(f"Error loading documents: {e}")
         return documents
 
-def split_documents(documents, chunk_size=1000, chunk_overlap=200):
+def split_documents(documents, chunk_size=settings.CHUNK_SIZE, chunk_overlap=settings.CHUNK_OVERLAP):
     """Split documents into chunks for better embedding."""
     if not documents:
         return []
@@ -50,8 +51,8 @@ def split_documents(documents, chunk_size=1000, chunk_overlap=200):
 
 def build_medical_index(documents_dir="src/data/medical_books", 
                        index_path="src/data/faiss_medical_index",
-                       chunk_size=1000,
-                       chunk_overlap=200):
+                       chunk_size=settings.CHUNK_SIZE,
+                       chunk_overlap=settings.CHUNK_OVERLAP):
     """
     Build a FAISS index from medical documents, with incremental update support.
     """

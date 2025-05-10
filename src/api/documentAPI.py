@@ -16,6 +16,7 @@ from src.data_processing.document_processor import chunk_documents
 import tempfile
 from src.utils.logger import get_api_logger
 from src.utils.registry import registry
+from src.utils.settings import settings
 
 logger = get_api_logger()
 router = APIRouter(prefix="/documents", tags=["DOCUMENTS"])
@@ -54,7 +55,7 @@ def process_document(file_path: str) -> List[Document]:
     
     documents = loader.load()
     
-    split_docs = chunk_documents(documents, chunk_size=1000, chunk_overlap=0)
+    split_docs = chunk_documents(documents, chunk_size=settings.CHUNK_SIZE, chunk_overlap=settings.CHUNK_OVERLAP)
     return split_docs
 
 def update_vector_database(file_path: str):
@@ -91,7 +92,7 @@ def update_vector_database(file_path: str):
             raise ValueError(f"Unsupported file type: {file_path}")
         
         # Split documents into chunks
-        chunks = chunk_documents(all_text, chunk_size=1000, chunk_overlap=0)
+        chunks = chunk_documents(all_text, chunk_size=settings.CHUNK_SIZE, chunk_overlap=settings.CHUNK_OVERLAP)
         
         # Create embeddings with CUDA support
         embeddings = HuggingFaceEmbeddings(

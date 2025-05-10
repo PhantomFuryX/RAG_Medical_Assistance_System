@@ -11,6 +11,7 @@ from pdf2image import convert_from_path
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from src.utils.logger import get_data_logger
 from src.utils.registry import registry
+from src.utils.settings import settings
 
 logger = get_data_logger()
 
@@ -165,7 +166,7 @@ def process_documents_in_parallel(doc_paths: List[str],
     
     return documents
 
-def get_text_splitter(chunk_size=1000, chunk_overlap=200):
+def get_text_splitter(chunk_size=settings.CHUNK_SIZE, chunk_overlap=settings.CHUNK_OVERLAP):
     """Get or create a text splitter from registry"""
     splitter_key = f"text_splitter_{chunk_size}_{chunk_overlap}"
     
@@ -183,7 +184,7 @@ def get_text_splitter(chunk_size=1000, chunk_overlap=200):
     registry.set(splitter_key, text_splitter)
     return text_splitter
 
-def chunk_documents(documents, chunk_size=1000, chunk_overlap=200):
+def chunk_documents(documents, chunk_size=settings.CHUNK_SIZE, chunk_overlap=settings.CHUNK_OVERLAP):
     """
     Split documents into smaller chunks for more efficient processing, with progress logging.
     """

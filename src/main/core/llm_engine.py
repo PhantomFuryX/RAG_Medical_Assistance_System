@@ -7,7 +7,8 @@ from langchain_anthropic import ChatAnthropic
 import json
 import os
 from typing import Dict, Any, Optional, List
-from src.utils.config import OPENAI_API_KEY, ANTHROPIC_API_KEY, DEEPSEEK_API_KEY
+# from src.utils.config import OPENAI_API_KEY, ANTHROPIC_API_KEY, DEEPSEEK_API_KEY
+from src.utils.settings import settings
 from src.utils.db_manager import db_manager
 from src.retrieval.document_retriever import retrieve_relevant_documents
 from src.services.conversation_service import ConversationService
@@ -22,6 +23,9 @@ SYSTEM_PROMPT = """You're a helpful medical assistant for elderly people. Be kin
 Always prioritize patient safety. If a question suggests a serious medical condition, advise consulting a healthcare professional.
 Provide general information only and clarify you're not a substitute for professional medical advice."""
 
+OPENAI_API_KEY = settings.OPENAI_API_KEY
+ANTHROPIC_API_KEY = settings.ANTHROPIC_API_KEY
+DEEPSEEK_API_KEY = settings.DEEPSEEK_API_KEY
 def ChatboxAI(chat_model, temperature=0.7, max_tokens=150):
     """
     Initialize a chat model based on the specified provider.

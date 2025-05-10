@@ -9,6 +9,7 @@ from src.models.symptom_classifier import SymptomClassifier
 from src.main.core.llm_engine import generate_response
 from src.utils.registry import registry
 from src.utils.logger import get_logger
+from src.utils.settings import settings
 
 logger = get_logger("pipeline")
 
@@ -36,7 +37,7 @@ class DiagnosisPipeline:
         # self.retriever = MedicalDocumentRetriever()
         self.entity_extractor = MedicalEntityExtractor()
         self.symptom_classifier = SymptomClassifier()
-        self.diagnosis_chain = build_diagnosis_chain('deepseek')
+        self.diagnosis_chain = build_diagnosis_chain(settings.MODEL_API)
         self.image_classifier = None  # Placeholder for image classifier
     
     def process_input(self, symptoms: str, image_path: str = None):

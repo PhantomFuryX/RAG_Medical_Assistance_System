@@ -6,6 +6,7 @@ from src.main.core.llm_engine import generate_response, generate_response_with_r
 from src.utils.db_manager import db_manager
 from src.utils.encryption import UserIdEncryption
 from src.utils.logger import get_api_logger
+from src.utils.settings import settings
 from src.main.pydentic_models.models import ChatHistoryResponse, ChatMessage
 from bson import ObjectId
 
@@ -28,7 +29,7 @@ async def chat_endpoint(request: ChatRequest, background_tasks: BackgroundTasks)
         response_data = await generate_response_with_rag(
             user_id=request.user_id,
             user_question=request.user_question,
-            chat_model='deepseek'  # You can make this configurable
+            chat_model=settings.MODEL_API  # You can make this configurable
         )
         
         # Extract the response text

@@ -1,8 +1,8 @@
 import torch
 import gc
-from src.utils.logger import get_logger
+from src.utils.logger import get_app_logger
 
-logger = get_logger(__name__)
+logger = get_app_logger()
 
 def get_gpu_info():
     """
