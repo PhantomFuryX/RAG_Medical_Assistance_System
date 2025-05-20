@@ -110,6 +110,10 @@ class EmbeddingManager:
         if not self._initialized:
             self._initialize()
         
+        if self._model is None:
+            logger.error("Failed to initialize model")
+            # You can either raise an exception here or return an error value
+            raise Exception("Failed to initialize model")
         # Process uncached texts in batches for efficiency
         uncached_embeddings = []
         
@@ -150,6 +154,10 @@ class EmbeddingManager:
         if not self._initialized:
             self._initialize()
         
+        if self._model is None:
+            logger.error("Failed to initialize model")
+            # You can either raise an exception here or return an error value
+            raise Exception("Failed to initialize model")
         # Compute embedding
         embedding = self._model.embed_query(query)
         

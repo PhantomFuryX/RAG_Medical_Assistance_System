@@ -9,7 +9,7 @@ STARTUP_CONFIG = {
     
     # Document processing
     "parallel_processing": True,
-    "max_workers": os.cpu_count() - 1 if os.cpu_count() > 1 else 1,
+    "max_workers": os.cpu_count() if os.cpu_count() is not None else 1,
     "chunk_size": 1000,
     "chunk_overlap": 200,
     

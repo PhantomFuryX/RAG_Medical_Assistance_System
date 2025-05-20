@@ -20,6 +20,7 @@ origins = [
     settings.CLIENT_ORIGIN,
     settings.CLIENT_ORIGIN_ONLINE
 ]
+origins = [origin for origin in origins if origin is not None]
 
 app = FastAPI(
     title="Medical Assistant API",

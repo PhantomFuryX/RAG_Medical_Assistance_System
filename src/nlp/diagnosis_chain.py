@@ -31,7 +31,7 @@ if __name__ == "__main__":
     chain = build_diagnosis_chain(settings.MODEL_API)
     
     user_symptoms = "I have a fever and body aches."
-    response = chain.invoke({"symptoms": user_symptoms})
+    response = chain.invoke(user_symptoms)
     
     sentiment = analyze_sentiment(response)
     print("Diagnosis:", response)

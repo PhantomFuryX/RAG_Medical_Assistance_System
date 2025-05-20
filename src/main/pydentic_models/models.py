@@ -17,7 +17,7 @@ class FeedbackResponse(BaseModel):
 
 class RAGRequest(BaseModel):
     symptoms: str
-    image_path: str = None
+    image_path: str
 
 class RAGResponse(BaseModel):
     diagnosis: str

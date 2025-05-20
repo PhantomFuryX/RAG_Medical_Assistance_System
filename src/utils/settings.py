@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     HUGGINGFACEHUB_ACCESS_TOKEN: Optional[str] = None
 
     # Database
-    MONGODB_URI: str
+    MONGODB_URI: str = Field(..., description="MongoDB URI", )
     DB_NAME: str = "ragmas"
     USER_TABLE: str = "users"
     CHAT_TABLE: str = "chats"
@@ -51,7 +51,7 @@ class Settings(BaseSettings):
 
     # Environment & Mode
     ENVIRONMENT: str = Field("development", description="Options: 'development', 'production'")
-    ONLINE_MODE: str = Field("offline", description="Options: 'online', 'offline'")
+    ONLINE_MODE: str | None = Field("offline", description="Options: 'online', 'offline'")
 
 class Config:
         env_file = './.env'

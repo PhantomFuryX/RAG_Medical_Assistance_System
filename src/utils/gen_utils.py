@@ -37,7 +37,7 @@ def load_prompts() -> Dict[str, Any]:
     with open(prompts_path, "r") as f:
         return json.load(f)
 
-def get_prompt_template(prompt_key: str) -> Optional[PromptTemplate]:
+def get_prompt_template_by_key(prompt_key: str) -> Optional[PromptTemplate]:
     """
     Get a specific prompt template by key
     
@@ -70,6 +70,6 @@ def get_prompt_template(prompt_key: str) -> Optional[PromptTemplate]:
 def build_chatting_chain(chat_model, messages=None):
     model = ChatboxAI(chat_model)
     parser = pydanticop
-    prompt = load_prompt_template(messages)
+    prompt = load_prompt_template(messages, format_instructions1)
     chain = prompt | model | parser
     return chain

@@ -23,7 +23,7 @@ try:
         # Use the existing retriever from the registry
         logger.info("Using existing retriever from registry")
         retriever = registry.get("retriever")
-    index_loaded = retriever.index is not None
+    index_loaded = retriever.vector_store is not None
 except Exception as e:
     print(f"Error initializing retriever: {e}")
     retriever = None
@@ -45,6 +45,13 @@ async def get_rag_diagnosis(request: RAGRequest):
         diagnosis = pipeline.process_input(request.symptoms, request.image_path)
         
         # Get the retrieved documents for references
+        if registry.get("retriever") is None:
+            retriever = MedicalDocumentRetriever(lazy_loading=True)
+        else:
+            # Use the existing retriever from the registry
+            logger.info("Using existing retriever from registry")
+            retriever = registry.get("retriever")
+        index_loaded = retriever.vector_store is not None
         retrieved_docs = retriever.retrieve(request.symptoms)
         references = [doc.page_content[:200] + "..." for doc in retrieved_docs]
         

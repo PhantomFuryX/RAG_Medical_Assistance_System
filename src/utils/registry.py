@@ -10,6 +10,7 @@ class Registry:
     """
     _instance = None
     _lock = threading.Lock()
+    _registry = None
     
     def __new__(cls):
         with cls._lock:
@@ -20,32 +21,44 @@ class Registry:
     
     def set(self, key: str, value: Any) -> None:
         """Set a value in the registry"""
+        if self._registry is None:
+            raise ValueError("_registry is not initialized")
         with self._lock:
             self._registry[key] = value
     
     def get(self, key: str, default: Any = None) -> Any:
         """Get a value from the registry with optional default"""
+        if self._registry is None:
+            raise ValueError("_registry is not initialized")
         with self._lock:
             return self._registry.get(key, default)
     
     def has(self, key: str) -> bool:
         """Check if a key exists in the registry"""
+        if self._registry is None:
+            raise ValueError("_registry is not initialized")
         with self._lock:
             return key in self._registry
     
     def remove(self, key: str) -> None:
         """Remove a key from the registry"""
+        if self._registry is None:
+            raise ValueError("_registry is not initialized")
         with self._lock:
             if key in self._registry:
                 del self._registry[key]
     
     def clear(self) -> None:
         """Clear the entire registry"""
+        if self._registry is None:
+            raise ValueError("_registry is not initialized")
         with self._lock:
             self._registry.clear()
     
     def get_all(self) -> Dict[str, Any]:
         """Get a copy of all registry items"""
+        if self._registry is None:
+            raise ValueError("_registry is not initialized")
         with self._lock:
             return self._registry.copy()
 

@@ -33,7 +33,7 @@ os.makedirs(EXTRACTED_IMAGES_DIR, exist_ok=True)
 
 # Initialize the retriever
 retriever = MedicalDocumentRetriever(index_path=FAISS_INDEX_DIR)
-index_loaded = retriever.index is not None
+index_loaded = retriever.vector_store is not None
 
 def get_retriever():
     if registry.get("retriever") is None:
@@ -79,7 +79,7 @@ def update_vector_database(file_path: str):
             # Extract text from the specific file
             all_text = []
             loader = processor._load_pdf(file_path)
-            text_docs = loader.load()
+            text_docs = loader
             all_text.extend([doc.page_content for doc in text_docs])
             
             # Extract images
@@ -119,8 +119,8 @@ def update_vector_database(file_path: str):
         
         # Update the global retriever with the new index
         global retriever, index_loaded
-        retriever = get_retriever
-        index_loaded = retriever.index is not None
+        retriever = get_retriever()
+        index_loaded = retriever.vector_store is not None
         
         processing_status[file_name] = "completed"
         print(f"Successfully processed {file_path} and updated the vector database using {device}")
@@ -131,15 +131,19 @@ def update_vector_database(file_path: str):
 @router.post("/upload-medical-document")
 async def upload_medical_document(
     background_tasks: BackgroundTasks,
-    file: UploadFile = File(...)
+    file: UploadFile = File(None)
 ):
     """Upload a document, save it to the medical_books folder, and update the vector database."""
+    if file is None:
+        raise HTTPException(status_code=400, detail="No file provided")
+    if file.filename is None:
+        raise HTTPException(status_code=400, detail="File name is missing")
     # Check file type
     if not (file.filename.lower().endswith('.pdf') or file.filename.lower().endswith('.txt')):
         raise HTTPException(status_code=400, detail="Only PDF and TXT files are supported")
     
     # Save the file to the medical_books directory
-    file_path = os.path.join(MEDICAL_BOOKS_DIR, file.filename)
+    file_path = os.path.join(str(MEDICAL_BOOKS_DIR), file.filename)
     
     try:
         # Create the file in the medical_books directory
@@ -192,14 +196,6 @@ async def get_processing_status(file_name: str):
     if file_name in processing_status:
         return {"file_name": file_name, "status": processing_status[file_name]}
     return {"file_name": file_name, "status": "not_found"}
-
-@router.get("/index-status")
-async def index_status(retriever: MedicalDocumentRetriever = Depends(get_retriever)):
-    """Check if the index exists."""
-    return {
-        "index_exists": retriever.index is not None,
-        "index_path": retriever.index_path
-    }
 
 @router.post("/rebuild-index")
 async def rebuild_index(background_tasks: BackgroundTasks):
@@ -264,7 +260,7 @@ async def list_documents():
 async def index_status(retriever: MedicalDocumentRetriever = Depends(get_retriever)):
     """Check if the index exists."""
     return {
-        "index_exists": retriever.index is not None,
+        "index_exists": retriever.vector_store is not None,
         "index_path": retriever.index_path
     }
 

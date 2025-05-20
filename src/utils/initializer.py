@@ -13,7 +13,7 @@ from src.utils.maintenance import run_maintenance_tasks
 
 logger = get_app_logger()
 
-async def initialize_system(background_tasks: BackgroundTasks = None):
+async def initialize_system(background_tasks: BackgroundTasks):
     """Initialize the system with optimizations"""
     config = get_startup_config()
     logger.info("Starting system initialization")
@@ -171,10 +171,10 @@ async def initialize_retriever(config):
             if registry.has("document_retriever"):
                 retriever = registry.get("document_retriever")
                 # Update the index
-                retriever.create_index(documents)
+                retriever.create_index(documents, use_sharding=True)
             else:
                 retriever = MedicalDocumentRetriever(lazy_loading=False)
-                retriever.create_index(documents)
+                retriever.create_index(documents, use_sharding=True)
                 registry.set("document_retriever", retriever)
             
             logger.info(f"Index built and saved to {index_path}")

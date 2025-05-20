@@ -4,6 +4,7 @@ from langchain.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_deepseek import ChatDeepSeek
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
+from pydantic import SecretStr
 import json
 import os
 from typing import Dict, Any, Optional, List
@@ -40,24 +41,18 @@ def ChatboxAI(chat_model, temperature=0.7, max_tokens=150):
     """
     if chat_model == 'openai':
         logger.info("Using OpenAI API")
-        api_key = OPENAI_API_KEY
+        assert OPENAI_API_KEY is not None, "OPENAI_API_KEY is not set"
+        api_key = SecretStr(OPENAI_API_KEY)
         return ChatOpenAI(
-            openai_api_key=api_key,
-            model_name="gpt-4",
+            api_key=api_key,
+            model="gpt-4",
             temperature=temperature,
-            max_tokens=max_tokens
-        )
-    elif chat_model == 'anthropic':
-        api_key = ANTHROPIC_API_KEY
-        return ChatAnthropic(
-            anthropic_api_key=api_key,
-            model="claude-v1",
-            temperature=temperature,
-            max_tokens=max_tokens
+            max_completion_tokens=max_tokens
         )
     elif chat_model == 'deepseek':
         logger.info("Using DeepSeek API")
-        api_key = DEEPSEEK_API_KEY
+        assert DEEPSEEK_API_KEY is not None, "DEEPSEEK_API_KEY is not set"
+        api_key = SecretStr(DEEPSEEK_API_KEY)
         return ChatDeepSeek(
             api_key=api_key,
             model='deepseek-chat',
@@ -82,7 +77,7 @@ def load_prompts() -> Dict[str, Any]:
         logger.error(f"Error loading prompts: {str(e)}")
         return {}
 
-def generate_response(user_question: str, context: Optional[str] = None, chat_model: str = 'openai') -> str:
+def generate_response(user_question: str, context: Optional[str] = None, chat_model: str = 'openai'):
     """
     Generate a response to a user question using the appropriate prompt based on context availability.
     
@@ -198,7 +193,8 @@ async def generate_response_with_rag(user_id: str, user_question: str, chat_mode
         
         # Generate response
         response_text = generate_response(user_question, context, chat_model)
-        
+        if not isinstance(response_text, str):
+            response_text = str(response_text)
         # Save the exchange to the database
         try:
             await db_manager.save_chat_exchange(

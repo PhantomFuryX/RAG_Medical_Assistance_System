@@ -162,7 +162,8 @@ class MedicalDocumentProcessor:
     def process_documents_in_parallel(self, doc_paths, max_workers=None):
         """Process documents in parallel using a process pool"""
         if max_workers is None:
-            max_workers = min(os.cpu_count(), 8)  # Use up to 8 cores
+            max_workers = os.cpu_count() or 4  # Default to 4 if CPU count is not available
+            max_workers = min(max_workers, 8)  # Use up to 8 cores
         
         logger.info(f"Processing {len(doc_paths)} documents using {max_workers} workers")
         
@@ -226,7 +227,7 @@ class MedicalDocumentProcessor:
             # Use the existing retriever from the registry
             logger.info("Using existing retriever from registry")
             retriever = registry.get("retriever")
-        retriever.create_index(chunks)
+        retriever.create_index(chunks, use_sharding=True)
         logger.info(f"Index created successfully at {output_index_path}")
         
         return retriever

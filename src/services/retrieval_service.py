@@ -3,22 +3,23 @@ import logging
 from typing import List, Dict, Any
 import faiss
 import numpy as np
-from retrieval.document_retriever import DocumentRetriever
+from retrieval.document_retriever import MedicalDocumentRetriever
+from utils.logger import get_logger 
 
 logger = logging.getLogger(__name__)
 
 class RetrievalService:
-    def __init__(self, index_path: str = None, embeddings_path: str = None):
+    def __init__(self, index_path: str, embeddings_path: str):
         self.index_path = index_path or os.getenv("FAISS_INDEX_PATH", "src/data/faiss_index")
         self.embeddings_path = embeddings_path or os.getenv("EMBEDDINGS_PATH", "src/data/embeddings")
-        self.retriever = DocumentRetriever(self.index_path, self.embeddings_path)
+        self.retriever = MedicalDocumentRetriever(self.index_path, self.embeddings_path)
         self.is_initialized = False
         
     async def initialize(self):
         """Initialize the retrieval service"""
         if not self.is_initialized:
             try:
-                self.retriever.load_index()
+                self.retriever._load_index()
                 self.is_initialized = True
                 logger.info("Retrieval service initialized successfully")
             except Exception as e:
@@ -40,11 +41,11 @@ class RetrievalService:
             await self.initialize()
             
         try:
-            results = self.retriever.search(query, top_k=top_k)
+            results = self.retriever.retrieve(query, k=top_k)
 
             if not results:
                 return {"context": "", "documents": []}
-            context = "\n\n".join([doc["text"] for doc in results])
+            context = "\n\n".join([doc.page_content for doc in results])
             return {
                 "context": context,
                 "documents": results  # includes metadata if available

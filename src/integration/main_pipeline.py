@@ -3,7 +3,7 @@ from src.nlp.diagnosis_chain import build_diagnosis_chain
 # from src.utils.config import OPENAI_API_KEY
 from src.utils.settings import settings
 
-if (settings.MODEL_API_KEY == "openai" ):
+if (settings.MODEL_API == "openai" ):
     API_KEY = settings.OPENAI_API_KEY
 OPENAI_API_KEY = settings.OPENAI_API_KEY
 def main():

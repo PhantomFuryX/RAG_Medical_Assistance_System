@@ -8,9 +8,9 @@ from pathlib import Path
 from src.data_processing.document_processor import process_and_chunk_documents
 from src.utils.registry import registry
 from src.utils.settings import settings
+import typing
 
 logger = get_data_logger()
-
 def load_documents(data_dir="../data/medical_texts", file_types=None):
     """Load documents from the specified directory."""
     if file_types is None:
@@ -24,9 +24,15 @@ def load_documents(data_dir="../data/medical_texts", file_types=None):
     documents = []
     try:
         for ext in file_types:
-            loader_cls = PyPDFLoader if ext == "pdf" else TextLoader
-            loader = DirectoryLoader(data_dir, glob=f"**/*.{ext}", loader_cls=loader_cls)
-            docs = loader.load()
+            pattern = f"**/*.{ext}"
+            file_paths = list(Path(data_dir).glob(pattern))
+            docs = []
+            for file_path in file_paths:
+                if ext == "pdf":
+                    loader = PyPDFLoader(str(file_path))
+                else:
+                    loader = TextLoader(str(file_path))
+                docs.extend(loader.load())
             logger.info(f"Loaded {len(docs)} {ext.upper()} documents from {data_dir}")
             documents.extend(docs)
         logger.info(f"Total documents loaded: {len(documents)}")
@@ -87,7 +93,7 @@ def build_medical_index(documents_dir="src/data/medical_books",
     else:
         logger.info("Using existing retriever from registry")
         retriever = registry.get("retriever")
-    retriever.create_index(chunked_docs)
+    retriever.create_index(chunked_docs, use_sharding=True)
     
     logger.info(f"Index created successfully at {index_path}")
     return retriever
@@ -104,7 +110,7 @@ def main():
     
     # Create the retriever and build the index
     retriever = MedicalDocumentRetriever(index_path="faiss_medical_index")
-    retriever.create_index(split_docs)
+    retriever.create_index(split_docs, use_sharding=True)
     logger.info("Index created successfully!")
     
     # Test the retriever

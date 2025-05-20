@@ -2,6 +2,16 @@ from langchain_community.vectorstores.faiss import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.documents import Document
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
+from langchain_community.retrievers import BM25Retriever
+from langchain.retrievers.contextual_compression import ContextualCompressionRetriever
+from langchain.retrievers.ensemble import EnsembleRetriever
+from langchain.retrievers.document_compressors.chain_extract import LLMChainExtractor
+from langchain_openai import ChatOpenAI
+from langchain.retrievers.multi_query import MultiQueryRetriever
+from langchain.retrievers.self_query.base import SelfQueryRetriever
+from langchain_core.prompts import PromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
 import torch
 import faiss.contrib.torch_utils
 import os
@@ -11,15 +21,17 @@ import numpy as np
 import faiss
 import json
 import pickle
-from typing import List, Dict, Any, Optional
-from langchain_core.documents import Document
+from typing import List, Dict, Any, Optional, Union, Tuple
 import concurrent.futures
+import hashlib
+from dotenv import load_dotenv
 
 from src.retrieval.embedding_manager import EmbeddingManager
-import hashlib
-import json
 from src.utils.registry import registry
 from src.utils.logger import get_data_logger
+from src.utils.settings import settings
+# Load environment variables
+load_dotenv()
 
 # Configure logging
 logger = get_data_logger()
@@ -27,7 +39,17 @@ logger = get_data_logger()
 class MedicalDocumentRetriever:
     def __init__(self, embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2", 
                  index_path: str = "faiss_medical_index",
-                 lazy_loading: bool = True):
+                 lazy_loading: bool = True,
+                 retrieval_strategy: str = "hybrid"):
+        """
+        Initialize the enhanced medical document retriever.
+        
+        Args:
+            embedding_model: The embedding model to use
+            index_path: Path to store/load the FAISS index
+            lazy_loading: Whether to load the index lazily
+            retrieval_strategy: The retrieval strategy to use (hybrid, bm25, semantic, ensemble)
+        """
         # Check if CUDA is available
         device = "cuda" if torch.cuda.is_available() else "cpu"
         logger.info(f"Using device: {device} for embeddings")
@@ -35,8 +57,11 @@ class MedicalDocumentRetriever:
         # Store parameters
         self.embedding_model_name = embedding_model
         self.index_path = index_path
+        self.retrieval_strategy = retrieval_strategy
         self._embeddings = None
-        self.index = None
+        self.vector_store = None
+        self.retriever = None
+        self.bm25_retriever = None
         self._loading_lock = threading.Lock()
         self._loading_thread = None
         self._loading_complete = threading.Event()
@@ -53,7 +78,9 @@ class MedicalDocumentRetriever:
                 # Copy the existing instance's attributes
                 logger.info("Using existing retriever from registry")
                 self._embeddings = existing_retriever._embeddings
-                self.index = existing_retriever.index
+                self.vector_store = existing_retriever.vector_store
+                self.retriever = existing_retriever.retriever
+                self.bm25_retriever = existing_retriever.bm25_retriever
                 self._loading_complete.set()
                 return
         
@@ -64,7 +91,7 @@ class MedicalDocumentRetriever:
             self.embedding_manager = EmbeddingManager.get_instance(embedding_model)
             registry.set("embedding_manager", self.embedding_manager)
         
-        # Initialize embeddings (this is relatively fast)
+        # Initialize embeddings
         self._init_embeddings()
         
         # Load the index (potentially in background)
@@ -115,18 +142,26 @@ class MedicalDocumentRetriever:
                 self._loading_complete.set()
                 return
             
-            # Load the index
-            self.index = FAISS.load_local(
-                self.index_path, 
-                self._embeddings, 
-                allow_dangerous_deserialization=True
-            )
+            # Load the vector store
+            if self._embeddings is not None:
+                self.vector_store = FAISS.load_local(
+                    self.index_path, 
+                    self._embeddings, 
+                    allow_dangerous_deserialization=True
+                )
+            else:
+                logger.error("Embeddings are not initialized")
+                self._loading_complete.set()
+                return
+            
+            # Create the appropriate retriever based on strategy
+            self._setup_retriever()
             
             elapsed = time.time() - start_time
             logger.info(f"Completed background loading of FAISS index in {elapsed:.2f} seconds")
             
             # Store in registry
-            registry.set("faiss_index", self.index)
+            registry.set("faiss_vector_store", self.vector_store)
             
             self._loading_complete.set()
         except Exception as e:
@@ -136,13 +171,14 @@ class MedicalDocumentRetriever:
     def _load_index(self):
         """Load the index, potentially waiting if it's already loading"""
         # If already loaded, return immediately
-        if self.index is not None:
+        if self.vector_store is not None:
             return
         
         # Check if index is in registry
-        if registry.has("faiss_index"):
-            self.index = registry.get("faiss_index")
-            logger.info("Using FAISS index from registry")
+        if registry.has("faiss_vector_store"):
+            self.vector_store = registry.get("faiss_vector_store")
+            logger.info("Using FAISS vector store from registry")
+            self._setup_retriever()
             self._loading_complete.set()
             return
         
@@ -155,7 +191,7 @@ class MedicalDocumentRetriever:
         # Acquire lock to prevent multiple threads from loading simultaneously
         with self._loading_lock:
             # Check again in case another thread loaded while waiting for lock
-            if self.index is not None:
+            if self.vector_store is not None:
                 return
                 
             # Start loading in background
@@ -167,10 +203,78 @@ class MedicalDocumentRetriever:
             logger.info("Waiting for initial index loading to complete...")
             self._loading_complete.wait()
     
+    def _setup_retriever(self):
+        """Set up the appropriate retriever based on the strategy"""
+        if self.vector_store is None:
+            logger.warning("Cannot set up retriever: vector store is None")
+            return
+        
+        # Create the base semantic search retriever
+        semantic_retriever = self.vector_store.as_retriever(
+            search_type="mmr",  # Use Maximum Marginal Relevance for diversity
+            search_kwargs={"k": 10, "fetch_k": 20}  # Fetch more candidates, then select diverse subset
+        )
+        
+        # Create BM25 retriever if we have documents
+        if hasattr(self.vector_store, "docstore") and hasattr(self.vector_store.docstore, "_dict"):
+            docs = list(self.vector_store.docstore._dict.values()) # type: ignore
+            texts = [doc.page_content for doc in docs]
+            self.bm25_retriever = BM25Retriever.from_texts(texts)
+            self.bm25_retriever.k = 10
+        
+        # Set up the retriever based on strategy
+        if self.retrieval_strategy == "semantic":
+            # Use semantic search only
+            self.retriever = semantic_retriever
+            logger.info("Using semantic search retriever")
+            
+        elif self.retrieval_strategy == "bm25" and self.bm25_retriever:
+            # Use BM25 only
+            self.retriever = self.bm25_retriever
+            logger.info("Using BM25 retriever")
+            
+        elif self.retrieval_strategy == "ensemble" and self.bm25_retriever:
+            # Combine BM25 and semantic search
+            self.retriever = EnsembleRetriever(
+                retrievers=[self.bm25_retriever, semantic_retriever],
+                weights=[0.5, 0.5]
+            )
+            logger.info("Using ensemble retriever (BM25 + semantic)")
+            
+        elif self.retrieval_strategy == "hybrid" and self.bm25_retriever:
+            # Use contextual compression with LLM extraction
+            try:
+                # Try to set up a contextual compression retriever
+                llm = ChatOpenAI(temperature=0)
+                compressor = LLMChainExtractor.from_llm(llm)
+                
+                compression_retriever = ContextualCompressionRetriever(
+                    base_compressor=compressor,
+                    base_retriever=semantic_retriever
+                )
+                
+                # Create a hybrid retriever that combines BM25 and compressed semantic search
+                self.retriever = EnsembleRetriever(
+                    retrievers=[self.bm25_retriever, compression_retriever],
+                    weights=[0.3, 0.7]
+                )
+                logger.info("Using hybrid retriever with contextual compression")
+            except Exception as e:
+                logger.warning(f"Failed to set up hybrid retriever: {e}. Falling back to ensemble.")
+                # Fall back to ensemble retriever
+                self.retriever = EnsembleRetriever(
+                    retrievers=[self.bm25_retriever, semantic_retriever],
+                    weights=[0.5, 0.5]
+                )
+        else:
+            # Default to semantic search
+            self.retriever = semantic_retriever
+            logger.info(f"Using default semantic search retriever (strategy '{self.retrieval_strategy}' not available)")
+    
     def retrieve(self, query: str, k: int = 5) -> List[Document]:
-        """Retrieve relevant documents for a query with caching and shard support"""
+        """Retrieve relevant documents for a query with advanced retrieval techniques"""
         # Check cache first
-        cache_key = f"{query}_{k}"
+        cache_key = f"{query}_{k}_{self.retrieval_strategy}"
         if cache_key in self._query_cache:
             logger.info(f"Cache hit for query: {query}")
             return self._query_cache[cache_key]
@@ -183,34 +287,89 @@ class MedicalDocumentRetriever:
             # We're using sharded indices
             return self._retrieve_from_shards(query, k)
         
-        # Regular non-sharded retrieval
         # Ensure index is loaded
         self._load_index()
         
-        if self.index is None:
-            logger.warning("No index available for retrieval")
-            return []
-        # Defensive type check
-        if isinstance(self.index, list):
-            logger.error(f"Index is a list, not a FAISS index. Type: {type(self.index)}. This indicates a bug in index assignment.")
+        if self.vector_store is None or self.retriever is None:
+            logger.warning("No index or retriever available")
             return []
         
         # Perform retrieval
         try:
-            results = self.index.similarity_search(query, k=k)
+            # Use a safer approach that doesn't rely on direct map
+            # First try using the retriever directly
+            results = []
+            try:
+                # Try to use query expansion for better results
+                expanded_queries = self._expand_query(query)
             
+                all_results = []
+                # Retrieve documents for each expanded query
+                for q in expanded_queries:
+                    query_results = self.retriever.get_relevant_documents(q)
+                    all_results.extend(query_results)
+            
+                # Deduplicate results
+                seen_contents = set()
+                unique_results = []
+                for doc in all_results:
+                    content_hash = hashlib.md5(doc.page_content.encode()).hexdigest()
+                    if content_hash not in seen_contents:
+                        seen_contents.add(content_hash)
+                        unique_results.append(doc)
+            
+                # Limit to top k results
+                results = unique_results[:k]
+            except Exception as e:
+                logger.warning(f"Error using retriever: {e}. Falling back to vector store.")
+                # Fall back to vector store's similarity search
+                if hasattr(self.vector_store, "similarity_search"):
+                    results = self.vector_store.similarity_search(query, k=k)
+        
             # Cache the results
             if len(self._query_cache) >= self._max_cache_size:
                 # Remove oldest item
                 self._query_cache.pop(next(iter(self._query_cache)))
             self._query_cache[cache_key] = results
-            
+        
             return results
         except Exception as e:
             logger.error(f"Error during retrieval: {e}")
-            return []
+            # Last resort fallback - try a very basic approach
+            try:
+                if hasattr(self.vector_store, "similarity_search"):
+                    return self.vector_store.similarity_search(query, k=k)
+                return []
+            except:
+                return []
     
-    def create_index(self, documents: List[Document], use_sharding: bool = None):
+    def _expand_query(self, query: str) -> List[str]:
+        """Expand the query to improve retrieval performance"""
+        # Start with the original query
+        queries = [query]
+        
+        # Simple rule-based expansion
+        # Add a version without question marks
+        if '?' in query:
+            queries.append(query.replace('?', ''))
+        
+        # Add a version with "medical" prefix if not present
+        if not any(term in query.lower() for term in ["medical", "health", "clinical", "doctor"]):
+            queries.append(f"medical {query}")
+        
+        # Try to extract key terms
+        terms = [word for word in query.split() if len(word) > 3 and word.lower() not in 
+                ["what", "when", "where", "which", "who", "whom", "whose", "why", "how", 
+                 "does", "is", "are", "was", "were", "will", "would", "should", "could", "have", "has", "had", "been", "being", "this", "that", "these", "those"]]
+        
+        if len(terms) >= 2:
+            # Add a query with just the key terms
+            queries.append(" ".join(terms))
+        
+        # Limit to 3 queries to avoid too much overhead
+        return queries[:3]
+    
+    def create_index(self, documents: List[Document], use_sharding: bool):
         """Create a new optimized FAISS index from the provided documents."""
         if not documents:
             raise ValueError("No documents provided to create the index.")
@@ -226,11 +385,12 @@ class MedicalDocumentRetriever:
             # Calculate optimal number of shards based on document count
             num_shards = max(4, min(32, int(len(documents) / 10000)))
             return self.create_sharded_index(documents, num_shards=num_shards)
+        
         current_hash = self._get_documents_hash(documents)
     
         # Check if the index exists and has the same document hash
         if os.path.exists(os.path.join(self.index_path, "index.faiss")) and \
-        os.path.exists(self._document_hash_file):
+           os.path.exists(self._document_hash_file):
             try:
                 with open(self._document_hash_file, "r") as f:
                     stored_hash = json.load(f).get("hash")
@@ -238,7 +398,7 @@ class MedicalDocumentRetriever:
                 if stored_hash == current_hash:
                     logger.info("Documents haven't changed, using existing index")
                     self._load_index()
-                    return self.index
+                    return self.vector_store
             except Exception as e:
                 logger.warning(f"Error checking document hash: {e}")
         
@@ -249,70 +409,45 @@ class MedicalDocumentRetriever:
             texts = [doc.page_content for doc in documents]
             metadatas = [doc.metadata for doc in documents]
             
-            # Create embeddings - use embedding manager from registry
-            embeddings_list = self._batch_embed_documents(texts)
-            
-            # Convert to numpy array
-            embeddings_array = np.array(embeddings_list).astype('float32')
-            
             # Create directory if it doesn't exist
             os.makedirs(self.index_path, exist_ok=True)
             
-            # Determine if we should use IVF index (better for larger datasets)
-            if len(documents) > 1000:
-                # Use IVF index for larger datasets
-                dimension = len(embeddings_list[0])
-                nlist = min(int(len(documents) ** 0.5), 100)  # Number of clusters
-                
-                # Check if we have a GPU-enabled FAISS
-                use_gpu = registry.get("use_gpu_faiss", False)
-                
-                if use_gpu:
-                    logger.info("Using GPU for FAISS indexing")
-                    
-                    # Create GPU index
-                    res = faiss.StandardGpuResources()
-                    quantizer = faiss.IndexFlatL2(dimension)
-                    gpu_quantizer = faiss.index_cpu_to_gpu(res, 0, quantizer)
-                    index = faiss.IndexIVFFlat(gpu_quantizer, dimension, nlist, faiss.METRIC_L2)
-                else:
-                    # Use CPU index
-                    quantizer = faiss.IndexFlatL2(dimension)
-                    index = faiss.IndexIVFFlat(quantizer, dimension, nlist, faiss.METRIC_L2)
-                
-                # Train the index
-                index.train(embeddings_array)
-                index.add(embeddings_array)
-                
-                logger.info(f"Created IVF index with {nlist} clusters")
-            else:
-                # Use flat index for smaller datasets
-                index = faiss.IndexFlatL2(len(embeddings_list[0]))
-                index.add(embeddings_array)
-                logger.info("Created flat index")
+            if self._embeddings is None:
+                raise ValueError("Embeddings are not initialized")
+
+            # Create the vector store
+            self.vector_store = FAISS.from_documents(
+                documents=documents,
+                embedding=self._embeddings,
+            )
             
-            # Save the index
-            faiss.write_index(index, os.path.join(self.index_path, "index.faiss"))
+            # Save the vector store
+            self.vector_store.save_local(self.index_path)
             
-            # Save the texts and metadata separately for faster loading
-                        # Save the texts and metadata separately for faster loading
-            with open(os.path.join(self.index_path, "documents.pkl"), "wb") as f:
-                pickle.dump({"texts": texts, "metadatas": metadatas}, f)
+            # Set up the retriever
+            self._setup_retriever()
+            
+            # Create BM25 retriever
+            self.bm25_retriever = BM25Retriever.from_texts(texts)
+            self.bm25_retriever.k = 10
+            
+            # Save BM25 retriever
+            with open(os.path.join(self.index_path, "bm25_retriever.pkl"), "wb") as f:
+                pickle.dump(self.bm25_retriever, f)
             
             logger.info(f"Index saved to {self.index_path}")
+            
+            # Save document hash
             try:
                 with open(self._document_hash_file, "w") as f:
                     json.dump({"hash": current_hash, "timestamp": time.time()}, f)
             except Exception as e:
                 logger.warning(f"Error saving document hash: {e}")
             
-            # Create the FAISS wrapper
-            self.index = FAISS(self._embeddings.embed_query, index, texts, metadatas)
-            
             # Store in registry
-            registry.set("faiss_index", self.index)
+            registry.set("faiss_vector_store", self.vector_store)
             
-            return self.index
+            return self.vector_store
         except Exception as e:
             logger.error(f"Error creating index: {e}")
             raise
@@ -339,26 +474,35 @@ class MedicalDocumentRetriever:
         # Ensure index is loaded
         self._load_index()
         
-        if self.index is None:
-            return self.create_index(documents)
+        if self.vector_store is None:
+            return self.create_index(documents, use_sharding=False)
         
         logger.info(f"Adding {len(documents)} documents to existing index")
         
         try:
-            # Add documents to the index
-            self.index.add_documents(documents)
+            # Add documents to the vector store
+            self.vector_store.add_documents(documents)
             
-            # Save the updated index
-            self.index.save_local(self.index_path)
+            # Save the updated vector store
+            self.vector_store.save_local(self.index_path)
+            
+            # Update BM25 retriever
+            if self.bm25_retriever:
+                texts = [doc.page_content for doc in documents]
+                self.bm25_retriever.from_texts(texts)
+                
+                # Save updated BM25 retriever
+                with open(os.path.join(self.index_path, "bm25_retriever.pkl"), "wb") as f:
+                    pickle.dump(self.bm25_retriever, f)
             
             # Clear the query cache as results may have changed
             self._query_cache.clear()
             
             # Update registry
-            registry.set("faiss_index", self.index)
+            registry.set("faiss_vector_store", self.vector_store)
             
             logger.info(f"Index updated and saved to {self.index_path}")
-            return self.index
+            return self.vector_store
         except Exception as e:
             logger.error(f"Error adding documents to index: {e}")
             raise
@@ -368,24 +512,18 @@ class MedicalDocumentRetriever:
         # Ensure index is loaded
         self._load_index()
         
-        if self.index is None:
+        if self.vector_store is None:
             logger.warning("No index to optimize")
             return
         
         logger.info("Optimizing FAISS index...")
         
         try:
-            # Get the current index data
-            current_index = self.index
-            
-            # Extract texts and metadata
-            texts = current_index.docstore._dict.values()
-            metadatas = [doc.metadata for doc in texts]
-            texts = [doc.page_content for doc in texts]
+            # Get the current documents
+            docs = list(self.vector_store.docstore._dict.values()) # type: ignore
             
             # Create a new optimized index
-            return self.create_index([Document(page_content=text, metadata=metadata) 
-                                     for text, metadata in zip(texts, metadatas)])
+            return self.create_index(docs, use_sharding=False)
         except Exception as e:
             logger.error(f"Error optimizing index: {e}")
             raise
@@ -410,43 +548,59 @@ class MedicalDocumentRetriever:
         # Create embedding for the query (only once)
         query_embedding = self.embedding_manager.embed_query(query)
         
+        # Expand the query for better retrieval
+        expanded_queries = self._expand_query(query)
+        expanded_embeddings = [
+            self.embedding_manager.embed_query(q) for q in expanded_queries
+        ]
+        
         # Use ThreadPoolExecutor to query shards in parallel
         all_results = []
         
         with concurrent.futures.ThreadPoolExecutor(max_workers=min(num_shards, 8)) as executor:
             future_to_shard = {}
             
-            # Submit tasks to query each shard
+            # Submit tasks to query each shard for each expanded query
             for shard_id in range(num_shards):
-                future = executor.submit(
-                    self._query_single_shard, 
-                    shard_id, 
-                    query_embedding, 
-                    shard_k
-                )
-                future_to_shard[future] = shard_id
+                for q_idx, q_embedding in enumerate(expanded_embeddings):
+                    future = executor.submit(
+                        self._query_single_shard, 
+                        shard_id, 
+                        q_embedding, 
+                        shard_k // len(expanded_embeddings)
+                    )
+                    future_to_shard[future] = (shard_id, q_idx)
             
             # Collect results
             for future in concurrent.futures.as_completed(future_to_shard):
-                shard_id = future_to_shard[future]
+                shard_id, q_idx = future_to_shard[future]
                 try:
                     shard_results = future.result()
                     all_results.extend(shard_results)
-                    logger.debug(f"Retrieved {len(shard_results)} results from shard {shard_id}")
+                    logger.debug(f"Retrieved {len(shard_results)} results from shard {shard_id} for query {q_idx}")
                 except Exception as e:
-                    logger.error(f"Error querying shard {shard_id}: {e}")
+                    logger.error(f"Error querying shard {shard_id} for query {q_idx}: {e}")
+        
+        # Deduplicate results
+        seen_contents = set()
+        unique_results = []
+        for doc, score in all_results:
+            content_hash = hashlib.md5(doc.page_content.encode()).hexdigest()
+            if content_hash not in seen_contents:
+                seen_contents.add(content_hash)
+                unique_results.append((doc, score))
         
         # Sort all results by similarity score (ascending for L2 distance)
-        all_results.sort(key=lambda x: x[1])
+        unique_results.sort(key=lambda x: x[1])
         
         # Take top-k results
-        top_k_results = all_results[:k]
+        top_k_results = unique_results[:k]
         
         # Convert to Document objects
         documents = [doc for doc, score in top_k_results]
         
         # Cache the results
-        cache_key = f"{query}_{k}"
+        cache_key = f"{query}_{k}_{self.retrieval_strategy}"
         if len(self._query_cache) >= self._max_cache_size:
             # Remove oldest item
             self._query_cache.pop(next(iter(self._query_cache)))
@@ -455,7 +609,7 @@ class MedicalDocumentRetriever:
         logger.info(f"Retrieved {len(documents)} documents from {num_shards} shards")
         return documents
 
-    def _query_single_shard(self, shard_id: int, query_embedding: List[float], k: int) -> List[tuple]:
+    def _query_single_shard(self, shard_id: int, query_embedding: List[float], k: int) -> List[Tuple[Document, float]]:
         """Query a single shard and return (document, score) tuples"""
         shard_path = os.path.join(self.index_path, "shards", f"shard_{shard_id}")
         index_path = os.path.join(shard_path, "index.faiss")
@@ -495,6 +649,7 @@ class MedicalDocumentRetriever:
         except Exception as e:
             logger.error(f"Error querying shard {shard_id}: {e}")
             return []
+    
     def create_sharded_index(self, documents: List[Document], num_shards: int = 4):
         """
         Create multiple smaller indices (shards) instead of one large index
@@ -522,6 +677,7 @@ class MedicalDocumentRetriever:
             docs_per_shard = 1
             num_shards = min(num_shards, len(documents))
         
+        dimensions = []
         # Process each shard
         for i in range(num_shards):
             start_idx = i * docs_per_shard
@@ -545,11 +701,15 @@ class MedicalDocumentRetriever:
             embeddings_array = np.array(embeddings_list).astype('float32')
             
             # Create FAISS index for this shard
-            dimension = len(embeddings_list[0])
+            dimension = len(embeddings_array[0]) if embeddings_array.size > 0 else 0
+            dimensions.append(dimension)
+            if dimension == 0:
+                logger.error("Embeddings array is empty. Skipping shard.")
+                continue
             index = faiss.IndexFlatL2(dimension)
             
             # Add vectors to index
-            index.add(embeddings_array)
+            index.add(embeddings_array, len(embeddings_array))
             
             # Save the index
             faiss.write_index(index, os.path.join(shard_path, "index.faiss"))
@@ -565,7 +725,7 @@ class MedicalDocumentRetriever:
             "num_shards": num_shards,
             "total_documents": len(documents),
             "created_at": time.time(),
-            "dimension": dimension
+            "dimension": dimensions[-1]
         }
         
         with open(os.path.join(self.index_path, "shard_metadata.json"), "w") as f:
@@ -573,14 +733,190 @@ class MedicalDocumentRetriever:
         
         logger.info(f"Created sharded index with {num_shards} shards")
         return True
+
+    def get_retriever(self):
+        """Get the underlying retriever for direct use in LangChain chains"""
+        self._load_index()
+        return self.retriever
+    
+    def rerank_results(self, query: str, documents: List[Document], top_k: int = 5) -> List[Document]:
+        """
+        Rerank the retrieved documents using a cross-encoder model for better relevance.
+        
+        Args:
+            query: The user query
+            documents: The retrieved documents
+            top_k: Number of top documents to return
+            
+        Returns:
+            Reranked list of documents
+        """
+        try:
+            from sentence_transformers import CrossEncoder
+            
+            # Check if we have a cross-encoder in registry
+            if registry.has("cross_encoder"):
+                model = registry.get("cross_encoder")
+            else:
+                # Initialize cross-encoder model
+                model = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
+                registry.set("cross_encoder", model)
+            
+            # Prepare document pairs for scoring
+            doc_pairs = [[query, doc.page_content] for doc in documents]
+            
+            # Score document pairs
+            scores = model.predict(doc_pairs)
+            
+            # Create document-score pairs
+            doc_score_pairs = list(zip(documents, scores))
+            
+            # Sort by score in descending order
+            doc_score_pairs.sort(key=lambda x: x[1], reverse=True)
+            
+            # Return top_k documents
+            return [doc for doc, score in doc_score_pairs[:top_k]]
+        except ImportError:
+            logger.warning("sentence-transformers not available for reranking. Using original order.")
+            return documents[:top_k]
+        except Exception as e:
+            logger.error(f"Error during reranking: {e}")
+            return documents[:top_k]
+    
+    def search_with_metadata_filter(self, query: str, filter_dict: Dict[str, Any], k: int = 5) -> List[Document]:
+        """
+        Search documents with metadata filtering
+        
+        Args:
+            query: The search query
+            filter_dict: Dictionary of metadata filters
+            k: Number of documents to retrieve
+            
+        Returns:
+            List of matching documents
+        """
+        self._load_index()
+        
+        if self.vector_store is None:
+            logger.warning("No vector store available for metadata search")
+            return []
+        
+        try:
+            results = self.vector_store.similarity_search_with_score(
+                query=query,
+                k=k,
+                filter=filter_dict
+            )
+            
+            # Extract just the documents
+            documents = [doc for doc, score in results]
+            return documents
+        except Exception as e:
+            logger.error(f"Error during metadata search: {e}")
+            return []
+    
+    def semantic_search(self, query: str, k: int = 5) -> List[Document]:
+        """
+        Perform pure semantic search without hybrid retrieval
+        
+        Args:
+            query: The search query
+            k: Number of documents to retrieve
+            
+        Returns:
+            List of matching documents
+        """
+        self._load_index()
+        
+        if self.vector_store is None:
+            logger.warning("No vector store available for semantic search")
+            return []
+        
+        try:
+            # Use MMR search for better diversity
+            results = self.vector_store.max_marginal_relevance_search(
+                query=query,
+                k=k,
+                fetch_k=k*3  # Fetch more candidates for diversity
+            )
+            return results
+        except Exception as e:
+            logger.error(f"Error during semantic search: {e}")
+            return []
+    
+    def keyword_search(self, query: str, k: int = 5) -> List[Document]:
+        """
+        Perform keyword-based search using BM25
+        
+        Args:
+            query: The search query
+            k: Number of documents to retrieve
+            
+        Returns:
+            List of matching documents
+        """
+        self._load_index()
+        
+        if self.bm25_retriever is None:
+            logger.warning("No BM25 retriever available for keyword search")
+            return []
+        
+        try:
+            # Set the number of documents to retrieve
+            self.bm25_retriever.k = k
+            
+            # Perform retrieval
+            results = self.bm25_retriever.get_relevant_documents(query)
+            return results
+        except Exception as e:
+            logger.error(f"Error during keyword search: {e}")
+            return []
+    
+    def hybrid_search(self, query: str, k: int = 5) -> List[Document]:
+        """
+        Perform hybrid search combining semantic and keyword search
+        
+        Args:
+            query: The search query
+            k: Number of documents to retrieve
+            
+        Returns:
+            List of matching documents
+        """
+        # This is essentially the same as retrieve() but with explicit hybrid approach
+        semantic_results = self.semantic_search(query, k=k)
+        
+        if self.bm25_retriever is None:
+            return semantic_results
+        
+        keyword_results = self.keyword_search(query, k=k)
+        
+        # Combine results
+        all_results = semantic_results + keyword_results
+        
+        # Deduplicate
+        seen_contents = set()
+        unique_results = []
+        for doc in all_results:
+            content_hash = hashlib.md5(doc.page_content.encode()).hexdigest()
+            if content_hash not in seen_contents:
+                seen_contents.add(content_hash)
+                unique_results.append(doc)
+        
+        # Rerank combined results
+        return self.rerank_results(query, unique_results, top_k=k)
+
+
 def initialize_retriever(documents_path: str = "src/data/medical_books", 
-                         embeddings_path: str = "src/data/embeddings"):
+                         embeddings_path: str = "src/data/embeddings",
+                         retrieval_strategy: str = "hybrid"):
     """
     Initialize the document retriever with the specified documents and model.
     
     Args:
         documents_path: Path to the documents directory
         embeddings_path: Path to save/load embeddings
+        retrieval_strategy: The retrieval strategy to use
     """
     # Check if retriever already exists in registry
     if registry.has("document_retriever"):
@@ -594,7 +930,8 @@ def initialize_retriever(documents_path: str = "src/data/medical_books",
     # Initialize the retriever with the specified paths
     retriever = MedicalDocumentRetriever(
         index_path=embeddings_path,
-        lazy_loading=False
+        lazy_loading=False,
+        retrieval_strategy=retrieval_strategy
     )
 
     # Incremental update logic
@@ -608,7 +945,7 @@ def initialize_retriever(documents_path: str = "src/data/medical_books",
         )
         documents = loader.load()
         if documents:
-            retriever.create_index(documents)
+            retriever.create_index(documents, use_sharding=True)
             logger.info(f"Created new index with {len(documents)} documents")
         else:
             logger.warning(f"No documents found in {documents_path}")
@@ -624,16 +961,17 @@ def initialize_retriever(documents_path: str = "src/data/medical_books",
         documents = [doc for doc in all_documents if os.path.basename(doc.metadata.get("source", "")) in updated_files]
         if documents:
             retriever.add_documents(documents)
-            logger.info(f"Incretally udated idex with {len(documents)} documents")
+            logger.info(f"Incrementally updated index with {len(documents)} documents")
         else:
             logger.warning(f"No documents found in {documents_path}")
     else:
         logger.info("No new or modified documents found, using existing index")
+    
     # Store in registry
     registry.set("document_retriever", retriever)
     return retriever
 
-# Function to retrieve relevant documents using the class-based retriever
+# Function to retrieve relevant documents using the enhanced retriever
 def retrieve_relevant_documents(query: str, top_k: int = 3) -> Dict[str, Any]:
     """
     Retrieve the most relevant documents for a query using the MedicalDocumentRetriever.

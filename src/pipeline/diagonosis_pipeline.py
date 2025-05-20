@@ -40,7 +40,7 @@ class DiagnosisPipeline:
         self.diagnosis_chain = build_diagnosis_chain(settings.MODEL_API)
         self.image_classifier = None  # Placeholder for image classifier
     
-    def process_input(self, symptoms: str, image_path: str = None):
+    def process_input(self, symptoms: str, image_path: str):
         """
         Process user symptoms and optional image to generate a diagnosis.
         

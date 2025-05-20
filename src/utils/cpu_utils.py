@@ -8,6 +8,11 @@ def get_cpu_info():
     Returns information about CPU utilization and system details, including P-core and E-core utilization.
     """
     cpu_count = psutil.cpu_count(logical=True)
+    if cpu_count is None:
+        # Handle the case where cpu_count is None
+        # You can either raise an exception or return a default value
+        raise Exception("Unable to determine CPU count")
+    
     cpu_freq = psutil.cpu_freq()
     cpu_percent = psutil.cpu_percent(interval=1, percpu=True)
     
