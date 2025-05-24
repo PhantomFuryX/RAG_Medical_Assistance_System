@@ -112,7 +112,7 @@ if __name__ == "__main__":
         "main:app", 
         log_level="info", 
         log_config=log_config_file,
-        host="127.0.0.1",
+        host="0.0.0.0",
         port=8000,
         **reload_settings
     )

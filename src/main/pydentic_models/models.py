@@ -112,6 +112,10 @@ class ChatMessage(BaseModel):
 
 class ChatHistoryResponse(BaseModel):
     history: List[ChatMessage]
+
+class WhatsAppRequest(BaseModel):
+    Body: str
+    From: Optional[str] = None
     
 response_schemas = [
     ResponseSchema(name="answer", description="Direct, user-friendly response to the question."),

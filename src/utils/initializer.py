@@ -170,11 +170,33 @@ async def initialize_retriever(config):
             # Check if we already have a retriever in registry
             if registry.has("document_retriever"):
                 retriever = registry.get("document_retriever")
-                # Update the index
-                retriever.create_index(documents, use_sharding=True)
+                # Update the index with FAISS compatibility fix
+                try:
+                    # Try with original method first
+                    retriever.create_index(documents, use_sharding=True)
+                except TypeError as e:
+                    if "takes 2 positional arguments but 3 were given" in str(e):
+                        logger.warning("Detected FAISS-PyTorch compatibility issue, applying workaround")
+                        # Apply workaround by disabling GPU for FAISS
+                        registry.set("use_gpu_faiss", False)
+                        # Try again with CPU-only mode
+                        retriever.create_index(documents, use_sharding=False)
+                    else:
+                        raise
             else:
                 retriever = MedicalDocumentRetriever(lazy_loading=False)
-                retriever.create_index(documents, use_sharding=True)
+                try:
+                    # Try with original method first
+                    retriever.create_index(documents, use_sharding=True)
+                except TypeError as e:
+                    if "takes 2 positional arguments but 3 were given" in str(e):
+                        logger.warning("Detected FAISS-PyTorch compatibility issue, applying workaround")
+                        # Apply workaround by disabling GPU for FAISS
+                        registry.set("use_gpu_faiss", False)
+                        # Try again with CPU-only mode
+                        retriever.create_index(documents, use_sharding=False)
+                    else:
+                        raise
                 registry.set("document_retriever", retriever)
             
             logger.info(f"Index built and saved to {index_path}")

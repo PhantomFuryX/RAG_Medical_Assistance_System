@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     CLIENT_ORIGIN: Optional[str] = None
     CLIENT_ORIGIN_ONLINE: Optional[str] = None
     BACKEND_URL_ONLINE: Optional[str] = None
+    
+    TWILIO_ACCOUNT_SID: Optional[str] = None
+    TWILIO_AUTH_TOKEN: Optional[str] = None
+    TWILIO_WHATSAPP_NUMBER: Optional[str] = None 
 
     # Environment & Mode
     ENVIRONMENT: str = Field("development", description="Options: 'development', 'production'")

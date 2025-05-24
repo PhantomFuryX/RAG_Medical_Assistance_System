@@ -12,7 +12,7 @@ from bson import ObjectId
 
 logger = get_api_logger()
 
-router = APIRouter()
+router = APIRouter(prefix="/Chat", tags=["Chat"])
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest, background_tasks: BackgroundTasks):
@@ -53,7 +53,7 @@ async def chat_endpoint(request: ChatRequest, background_tasks: BackgroundTasks)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing request: {str(e)}")
 
-@router.get("/chat/history/{user_id}", response_model=ChatHistoryResponse)
+@router.get("/history/{user_id}", response_model=ChatHistoryResponse)
 async def get_chat_history(
     user_id: str,
     limit: int = Query(10, ge=1, le=50),
