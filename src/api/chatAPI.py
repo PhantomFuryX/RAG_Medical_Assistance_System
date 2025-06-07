@@ -42,7 +42,8 @@ async def chat_endpoint(request: ChatRequest, background_tasks: BackgroundTasks)
             request.user_id
         )
         logger.info(f"printing chat response: {response_data}")
-        return ChatResponse(
+        
+        response_ = ChatResponse(
             user_id=request.user_id,
             user_question=request.user_question,
             response=response,
@@ -50,6 +51,7 @@ async def chat_endpoint(request: ChatRequest, background_tasks: BackgroundTasks)
             rag_used=response_data.get("rag_used", False),
             source_documents=response_data.get("source_documents", [])
         )
+        return response_
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing request: {str(e)}")
 

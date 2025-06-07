@@ -22,7 +22,7 @@
       "class": "logging.handlers.RotatingFileHandler",
       "level": "INFO",
       "formatter": "default",
-      "filename": "C:\\Work\\My_projects\\RAG_Medical_assitance_system\\logs\\server.log",
+      "filename": "/home/rwk/RAG_Medical_Assistance_System/logs/server.log",
       "maxBytes": 10485760,
       "backupCount": 5
     },
@@ -30,7 +30,7 @@
       "class": "logging.handlers.RotatingFileHandler",
       "level": "INFO",
       "formatter": "access",
-      "filename": "C:\\Work\\My_projects\\RAG_Medical_assitance_system\\logs\\access.log",
+      "filename": "/home/rwk/RAG_Medical_Assistance_System/logs/access.log",
       "maxBytes": 10485760,
       "backupCount": 5
     },
@@ -38,7 +38,7 @@
       "class": "logging.handlers.RotatingFileHandler",
       "level": "ERROR",
       "formatter": "default",
-      "filename": "C:\\Work\\My_projects\\RAG_Medical_assitance_system\\logs\\errors.log",
+      "filename": "/home/rwk/RAG_Medical_Assistance_System/logs/errors.log",
       "maxBytes": 10485760,
       "backupCount": 5
     }
