@@ -1,3 +1,12 @@
+from dotenv import load_dotenv
+import os
+load_dotenv()
+
+# Print all environment variables for debugging
+print("\n--- ENVIRONMENT VARIABLES ---")
+for key, value in os.environ.items():
+    print(f"{key}={value}")
+print("--- END ENVIRONMENT VARIABLES ---\n")# Configure logging
 import uvicorn
 from fastapi import FastAPI, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,9 +18,9 @@ from src.utils.logger import get_server_logger, configure_root_logger, save_uvic
 from src.utils.initializer import init_app
 import sys
 from fastapi.responses import JSONResponse
+
 import traceback
 
-# Configure logging
 configure_root_logger()
 logger = get_server_logger()
 log_config_file = save_uvicorn_log_config()

@@ -76,6 +76,8 @@ class ChatResponse(BaseModel):
     user_question: str
     response: str
     timestamp: Optional[datetime] = None
+    rag_used: bool = Field(default=False, description="Indicates if Retrieval-Augmented Generation (RAG) was used")
+    source_documents: List[str] = Field(default_factory=list, description="List of source documents used for RAG")
 
 class SummaryRequest(BaseModel):
     user_id: str

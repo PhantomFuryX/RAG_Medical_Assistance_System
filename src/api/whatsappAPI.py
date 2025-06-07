@@ -51,7 +51,7 @@ async def send_whatsapp_message(request: Request):
             
             if chat_response.status_code == 200:
                 response_data = chat_response.json()
-                response_text = response_data.get("response", "Sorry, I couldn't process your request.")
+                response_text = response_data.get("response", f"{response_data}\tSorry, I couldn't process your request.")
             else:
                 response_text = f"Sorry, I encountered an error processing your request. Status code: {chat_response.status_code}"
         

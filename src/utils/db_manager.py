@@ -37,10 +37,10 @@ class DatabaseManager:
             
         # Get MongoDB Atlas connection string from environment variables
         self.mongo_uri = os.environ.get("MONGODB_URI")
+        logger.debug(f"MONGODB_URI:\t{self.mongo_uri}") 
         if not self.mongo_uri:
             logger.warning("MONGODB_URI not set in environment variables. Using default local connection.")
             self.mongo_uri = "mongodb://localhost:27017"
-            
         self.db_name = os.environ.get("MONGODB_DB_NAME", "medical_assistant")
         self.client = None
         self.db = None

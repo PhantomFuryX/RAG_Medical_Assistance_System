@@ -76,10 +76,10 @@ def download_pdfs_from_json(json_file, save_directory):
 
 if __name__ == "__main__":
     # Path to the JSON file containing book information
-    json_file = "c:\\Work\\My_projects\\RAG_Medical_assitance_system\\src\\utils\\book_names.json"
+    json_file = "./RAG_Medical_assitance_system/src/utils/book_names.json"
 
     # Directory to save the downloaded PDFs
-    save_directory = "c:\\Work\\My_projects\\RAG_Medical_assitance_system\\pdfs"
+    save_directory = "./RAG_Medical_assitance_system/pdfs"
 
     # Download all PDFs
     download_pdfs_from_json(json_file, save_directory)
